@@ -1,5 +1,6 @@
 import torch
-
+import numpy as np
+import pandas as pd
 from model import UNet
 from data import TiffSegmentationDataset
 
@@ -15,8 +16,8 @@ torch.device(device)
 print("Using device:", device)
 
 # Load Data
-DATA_DIR = "./data/"
-dataset = TiffSegmentationDataset(data_dir=DATA_DIR)
+dataset = TiffSegmentationDataset(
+    'data_isbi/train/images', 'data_isbi/train/labels')
 
 indices = len(dataset)
 
@@ -31,24 +32,27 @@ train_set, test_set = torch.utils.data.random_split(
 print(f"Training set size: {len(train_set)}")
 print(f"Test set size: {len(test_set)}")
 
-batch_size = 4
+batch_size = 8
 train_loader = DataLoader(
     train_set, batch_size=batch_size, shuffle=True, drop_last=True)
 test_loader = DataLoader(test_set, batch_size=batch_size,
                          shuffle=False, drop_last=False)
 
 
-num_epochs = 20
-LEARNING_RATE=1e-3
+# TiffSegmentationDataset.show_img(train_loader[0])
+# TiffSegmentationDataset.show_img(test_loader[0])
+
+num_epochs = 10
+LEARNING_RATE = 1e-3
 
 model = UNet(in_channels=1, out_channels=1).to(device=device)
-criterion = nn.BCEWithLogitsLoss()
+criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 best_val_loss = float('inf')
 
 for epoch in range(num_epochs):
     model.train()
-    loss = 0.0
+    total_train_loss = 0.0
 
     for images, masks in train_loader:
         images = images.to(device)
@@ -58,29 +62,30 @@ for epoch in range(num_epochs):
 
         loss = criterion(outputs, masks)
 
-        optimizer.zero_grad
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        loss += loss.item()
+        total_train_loss += loss.item()
 
-    avg_train_loss = loss/len(train_loader)
+    avg_train_loss = total_train_loss/float(len(train_set))
 
     model.eval()
     val_loss = 0.0
-    with torch.no_grad(): 
+    with torch.no_grad():
         for images, masks in test_loader:
             images = images.to(device)
             masks = masks.to(device)
-            
+
             outputs = model(images)
             loss = criterion(outputs, masks)
             val_loss += loss.item()
 
-    avg_val_loss = val_loss / len(test_loader)
+    avg_val_loss = val_loss / float(len(test_set))
 
-    if epoch % (num_epochs/20) == 0:
-        print(f"Epoch [{epoch}] | trainning loss : {avg_train_loss:.4f} | 验证损失: {avg_val_loss:.4f}")
+    if epoch % (num_epochs/10) == 0:
+        print(
+            f"Epoch [{epoch}] | trainning loss : {avg_train_loss:.4f} | val loss: {avg_val_loss:.4f}")
 
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss

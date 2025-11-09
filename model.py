@@ -55,6 +55,9 @@ class UNet(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, first_out_channcels: int = 64, steps: int = 4):
         super().__init__()
 
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+
         self.input_layer = DoubleConv(in_channels=in_channels,
                                       out_channels=first_out_channcels)
         self.downlayers = nn.ModuleList()
