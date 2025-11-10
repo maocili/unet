@@ -45,7 +45,7 @@ test_loader = DataLoader(test_set, batch_size=batch_size,
 # Test
 BATCH_SIZE=4
 MODEL_PATH="best_unet_model.pth"
-model = UNet(in_channels=1, out_channels=1).to(device)
+model = UNet(in_channels=1, out_channels=2).to(device)
 
 try:
     model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
@@ -63,8 +63,8 @@ with torch.no_grad():
         images = images.to(device)
         masks = masks.to(device)
         
-        outputs = model(images)
-        loss = criterion(outputs, masks)
+        masks_pred = model(images)
+        loss = criterion(masks_pred, masks)
         total_test_loss += loss.item()
 
 avg_test_loss = total_test_loss / len(test_loader)
@@ -76,10 +76,11 @@ try:
     images = images.to(device)
     
     with torch.no_grad():
-        outputs = model(images)
+        masks_pred = model(images)
+
     
     # 将输 (logits) 转换为 0-1 之间的概率
-    preds = torch.sigmoid(outputs)
+    preds = torch.sigmoid(masks_pred)
     preds = (preds > 0.5).float() # 使用 0.5 作为阈值
 
     images_np = images.cpu().numpy()
@@ -92,6 +93,8 @@ try:
     if num_to_show == 1:
         axes = [axes]
 
+    print(images_np.shape,masks_np.shape,preds_np.shape)
+
     for i in range(num_to_show):
         axes[i, 0].imshow(np.squeeze(images_np[i]), cmap='gray')
         axes[i, 0].set_title("(Original Image)")
@@ -101,7 +104,8 @@ try:
         axes[i, 1].set_title("(True Mask)")
         axes[i, 1].axis('off')
         
-        axes[i, 2].imshow(np.squeeze(preds_np[i]), cmap='gray')
+        final_prediction = np.argmax(preds_np[i], axis=0)
+        axes[i, 2].imshow(np.squeeze(final_prediction), cmap='gray')
         axes[i, 2].set_title("(Predicted Mask)")
         axes[i, 2].axis('off')
 
