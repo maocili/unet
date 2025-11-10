@@ -63,10 +63,10 @@ class DatasetSubsetWithTransform(Subset):
 
 
 class TiffSegmentationDataset(Dataset):
-    def __init__(self, image_path :str, masks_path: str, transform=None,):
+    def __init__(self, image_path: str, masks_path: str, transform=None,):
         super().__init__()
 
-        self.file_supports = ("tif","tiff")
+        self.file_supports = ("tif", "tiff")
         self.image_path_dir = image_path
         self.mask_path_dir = masks_path
         self.transform = transform
@@ -123,14 +123,21 @@ class TiffSegmentationDataset(Dataset):
         image_path, mask_path = self.file_pairs[idx]
         image = tiff.imread(image_path)  # (H, W) or (D, H, W)
         mask = tiff.imread(mask_path)
-
         if image.ndim == 2:
             image = np.expand_dims(image, axis=0)
         if mask.ndim == 2:
-            mask = np.expand_dims(mask, axis=0)
+            mask = mask.reshape(-1, 1)
+            # mask = np.expand_dims(mask, axis=0)
+
+        mask = mask >= 255/2
+        mask = mask.astype(np.uint8)
+        mask = mask.reshape(512,512)
 
         image_tensor = torch.from_numpy(image).float()
-        mask_tensor = torch.from_numpy(mask).float()
+        mask_tensor = torch.from_numpy(mask).long()
+
+        # print(image_tensor.shape, mask_tensor.shape)
+
         if self.transform:
             # TODO:
             pass
@@ -140,7 +147,10 @@ class TiffSegmentationDataset(Dataset):
     @staticmethod
     def show_img(img_data: np.ndarray, streth: bool = True, title: str = "Micro-CT Image"):
         if isinstance(img_data, torch.Tensor):
-            img_data = img_data.cpu().numpy()
+            if img_data.requires_grad:
+                img_data = img_data.detach().cpu().numpy()
+            else:
+                img_data = img_data.cpu().numpy()
 
         if img_data.shape[0] == 1:
             img_data = img_data[0]
@@ -174,31 +184,33 @@ class TiffSegmentationDataset(Dataset):
         plt.show()
 
 
+# dataset = TiffSegmentationDataset(
+#     'data_isbi/train/images', 'data_isbi/train/labels')
 
-dataset = TiffSegmentationDataset('data_isbi/train/images','data_isbi/train/labels')
+# indices = len(dataset)
 
-indices = len(dataset)
+# train_size = len(dataset) - int(0.2*len(dataset))
+# test_size = len(dataset) - train_size
 
-train_size = len(dataset) - int(0.2*len(dataset))
-test_size = len(dataset) - train_size
+# # Create random splits for train and test sets
+# train_set, test_set = torch.utils.data.random_split(
+#     dataset,
+#     [train_size, test_size]
+# )
+# print(f"Training set size: {len(train_set)}")
+# print(f"Test set size: {len(test_set)}")
 
-# Create random splits for train and test sets
-train_set, test_set = torch.utils.data.random_split(
-    dataset, 
-    [train_size, test_size]
-)
-print(f"Training set size: {len(train_set)}")
-print(f"Test set size: {len(test_set)}")
+# batch_size = 4
 
-batch_size = 4
+# train_loader = DataLoader(
+#     train_set, batch_size=batch_size, shuffle=True, drop_last=True)
+# test_loader = DataLoader(test_set, batch_size=batch_size,
+#                          shuffle=False, drop_last=False)
 
-train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True)
-test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, drop_last=False)
+# images, mask = next(iter(train_loader))
+# print(images.shape, mask.shape)
 
-images,mask = next(iter(train_loader))
-print(images.shape,mask.shape)
-
-print(len(images))
+# print(len(images))
 
 # TiffSegmentationDataset.show_img(images[0],streth=True,title="a")
 # TiffSegmentationDataset.show_img(mask[0],streth=True,title="a")

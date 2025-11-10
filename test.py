@@ -19,8 +19,8 @@ torch.device(device)
 print("Using device:", device)
 
 # Load Data
-DATA_DIR = "./data/"
-dataset = TiffSegmentationDataset(data_dir=DATA_DIR)
+dataset = TiffSegmentationDataset(
+    'data_isbi/train/images', 'data_isbi/train/labels')
 
 indices = len(dataset)
 
@@ -107,6 +107,7 @@ try:
 
     plt.tight_layout()
     plt.show() # 如果你想在脚本运行时立即看到图像，取消这行注释
+    
 
 except StopIteration:
     print(f"Error: StopIteration")

@@ -10,8 +10,8 @@ from torch.utils.data import DataLoader, Dataset, Subset
 device = "cpu"
 if torch.cuda.is_available():
     device = "cuda"
-elif torch.backends.mps.is_available():
-    device = "mps"
+# elif torch.backends.mps.is_available():
+#     device = "mps"
 torch.device(device)
 print("Using device:", device)
 
@@ -32,22 +32,21 @@ train_set, test_set = torch.utils.data.random_split(
 print(f"Training set size: {len(train_set)}")
 print(f"Test set size: {len(test_set)}")
 
-batch_size = 8
+batch_size = 1
 train_loader = DataLoader(
     train_set, batch_size=batch_size, shuffle=True, drop_last=True)
 test_loader = DataLoader(test_set, batch_size=batch_size,
                          shuffle=False, drop_last=False)
 
 
-# TiffSegmentationDataset.show_img(train_loader[0])
-# TiffSegmentationDataset.show_img(test_loader[0])
-
 num_epochs = 10
 LEARNING_RATE = 1e-3
 
-model = UNet(in_channels=1, out_channels=1).to(device=device)
+model = UNet(in_channels=1, out_channels=2).to(device=device)
 criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+# criterion = model.loss_fn
+optimizer = torch.optim.SGD(
+    model.parameters(), lr=LEARNING_RATE, momentum=0.99)
 best_val_loss = float('inf')
 
 for epoch in range(num_epochs):
@@ -55,18 +54,18 @@ for epoch in range(num_epochs):
     total_train_loss = 0.0
 
     for images, masks in train_loader:
-        images = images.to(device)
-        masks = masks.to(device)
+        images = images.to(device=device)
+        masks = masks.to(device=device)
 
-        outputs = model(images)
+        masks_pred = model(images)
 
-        loss = criterion(outputs, masks)
+        batch_loss = criterion(masks_pred, masks)
 
         optimizer.zero_grad()
-        loss.backward()
+        batch_loss.backward()
         optimizer.step()
 
-        total_train_loss += loss.item()
+        total_train_loss += batch_loss.item()
 
     avg_train_loss = total_train_loss/float(len(train_set))
 
@@ -78,7 +77,8 @@ for epoch in range(num_epochs):
             masks = masks.to(device)
 
             outputs = model(images)
-            loss = criterion(outputs, masks)
+            loss = criterion(masks, outputs)
+
             val_loss += loss.item()
 
     avg_val_loss = val_loss / float(len(test_set))
