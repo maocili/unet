@@ -38,13 +38,15 @@ from torch.utils.data import Dataset, DataLoader, Subset
 
 
 class TiffDataset(Dataset):
-    def __init__(self, image_path: str, masks_path: str):
+    def __init__(self, image_path: str, masks_path: str, transform=None):
         super().__init__()
 
         self.file_supports = ("tif", "tiff")
         self.image_path_dir = image_path
         self.mask_path_dir = masks_path
         self.file_pairs = self.__get_file_pairs()
+        
+        self.transform = transform
 
     def __get_numeric_key(self, filename):
         for t in self.file_supports:
@@ -109,6 +111,10 @@ class TiffDataset(Dataset):
         image_tensor = torch.from_numpy(image).float()
         mask_tensor = torch.from_numpy(mask).long()
 
+        sample = {'image': image_tensor, 'masks': mask_tensor}
+        if self.transform:
+            return self.transform(sample)
+        
         return image_tensor, mask_tensor
 
     @staticmethod
@@ -150,35 +156,3 @@ class TiffDataset(Dataset):
         plt.title(title)
         plt.axis("off")
         plt.show()
-
-
-# dataset = TiffDataset(
-#     'data_isbi/train/images', 'data_isbi/train/labels')
-
-# indices = len(dataset)
-
-# train_size = len(dataset) - int(0.2*len(dataset))
-# test_size = len(dataset) - train_size
-
-# # Create random splits for train and test sets
-# train_set, test_set = torch.utils.data.random_split(
-#     dataset,
-#     [train_size, test_size]
-# )
-# print(f"Training set size: {len(train_set)}")
-# print(f"Test set size: {len(test_set)}")
-
-# batch_size = 4
-
-# train_loader = DataLoader(
-#     train_set, batch_size=batch_size, shuffle=True, drop_last=True)
-# test_loader = DataLoader(test_set, batch_size=batch_size,
-#                          shuffle=False, drop_last=False)
-
-# images, mask = next(iter(train_loader))
-# print(images.shape, mask.shape)
-
-# print(len(images))
-
-# TiffDataset.show_img(images[0],streth=True,title="a")
-# TiffDataset.show_img(mask[0],streth=True,title="a")

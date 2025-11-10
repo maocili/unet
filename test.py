@@ -34,15 +34,14 @@ train_set, test_set = torch.utils.data.random_split(
 print(f"Training set size: {len(train_set)}")
 print(f"Test set size: {len(test_set)}")
 
-batch_size = 4
+BATCH_SIZE = 1
 train_loader = DataLoader(
-    train_set, batch_size=batch_size, shuffle=True, drop_last=True)
-test_loader = DataLoader(test_set, batch_size=batch_size,
+    train_set, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
+test_loader = DataLoader(test_set, batch_size=BATCH_SIZE,
                          shuffle=False, drop_last=False)
 
 
 # Test
-BATCH_SIZE = 4
 MODEL_PATH = "best_unet_model.pth"
 model = UNet(in_channels=1, out_channels=2).to(device)
 
