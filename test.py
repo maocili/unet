@@ -110,7 +110,7 @@ try:
         axes[i, 2].axis('off')
 
     plt.tight_layout()
-    plt.show() # 如果你想在脚本运行时立即看到图像，取消这行注释
+    plt.show() 
     
 
 except StopIteration:
