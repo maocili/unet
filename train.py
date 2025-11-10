@@ -76,8 +76,8 @@ for epoch in range(num_epochs):
             images = images.to(device)
             masks = masks.to(device)
 
-            outputs = model(images)
-            loss = criterion(masks, outputs)
+            masks_pred = model(images)
+            loss = criterion(masks_pred, masks)
 
             val_loss += loss.item()
 
