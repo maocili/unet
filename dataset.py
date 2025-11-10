@@ -1,13 +1,12 @@
 import os
 import re
+import torch
 import numpy as np
 import tifffile as tiff
 import matplotlib.pyplot as plt
-import torch
 from torch.utils.data import Dataset, DataLoader, Subset
 
-'''
-
+"""
 # dataset = TiffSegmentationDataset('data_isbi/train/images','data_isbi/train/labels')
 
 # indices = len(dataset)
@@ -35,43 +34,16 @@ from torch.utils.data import Dataset, DataLoader, Subset
 # TiffSegmentationDataset.show_img(images[0],streth=True,title="a")
 # TiffSegmentationDataset.show_img(mask[0],streth=True,title="a")
 
-'''
+"""
 
 
-class DatasetSubsetWithTransform(Subset):
-
-    def __init__(self, dataset, indices, transform=None):
-        super().__init__(dataset, indices)
-        self.transform = transform
-
-    def _transform_and_translate(self, x, y):
-        # Convert PIL image to RGB (some of them are greyscale)
-        x = x.convert('RGB')
-        if self.transform is not None:
-            x = self.transform(x)
-        y = translate_label(y, keep_classes)
-        return x, y
-
-    def __getitem__(self, idx):
-        return self._transform_and_translate(*super().__getitem__(idx))
-
-    def __getitems__(self, indices):
-        items = super().__getitems__(indices)
-        for i in range(len(items)):
-            items[i] = self._transform_and_translate(*items[i])
-        return items
-
-
-class TiffSegmentationDataset(Dataset):
-    def __init__(self, image_path: str, masks_path: str, transform=None,):
+class TiffDataset(Dataset):
+    def __init__(self, image_path: str, masks_path: str):
         super().__init__()
 
         self.file_supports = ("tif", "tiff")
         self.image_path_dir = image_path
         self.mask_path_dir = masks_path
-        self.transform = transform
-
-        # 这个列表将存储 (image_path, mask_path) 对
         self.file_pairs = self.__get_file_pairs()
 
     def __get_numeric_key(self, filename):
@@ -106,7 +78,7 @@ class TiffSegmentationDataset(Dataset):
 
         final_pairs_list = []
         for f in mlist:
-            if not f.endswith(('.tif', '.tiff', 'png')):
+            if not f.endswith(self.file_supports):
                 continue
             idx = self.__get_numeric_key(f)
             if idx in pairs_map:
@@ -121,31 +93,28 @@ class TiffSegmentationDataset(Dataset):
 
     def __getitem__(self, idx):
         image_path, mask_path = self.file_pairs[idx]
-        image = tiff.imread(image_path)  # (H, W) or (D, H, W)
+        image = tiff.imread(image_path)  # (H, W)
         mask = tiff.imread(mask_path)
         if image.ndim == 2:
             image = np.expand_dims(image, axis=0)
+
         if mask.ndim == 2:
             mask = mask.reshape(-1, 1)
             # mask = np.expand_dims(mask, axis=0)
 
-        mask = mask >= 255/2
+        mask = mask >= 255 / 2
         mask = mask.astype(np.uint8)
-        mask = mask.reshape(512,512)
+        mask = mask.reshape(512, 512)
 
         image_tensor = torch.from_numpy(image).float()
         mask_tensor = torch.from_numpy(mask).long()
 
-        # print(image_tensor.shape, mask_tensor.shape)
-
-        if self.transform:
-            # TODO:
-            pass
-
         return image_tensor, mask_tensor
 
     @staticmethod
-    def show_img(img_data: np.ndarray, streth: bool = True, title: str = "Micro-CT Image"):
+    def show_img(
+        img_data: np.ndarray, streth: bool = True, title: str = "Micro-CT Image"
+    ):
         if isinstance(img_data, torch.Tensor):
             if img_data.requires_grad:
                 img_data = img_data.detach().cpu().numpy()
@@ -168,8 +137,7 @@ class TiffSegmentationDataset(Dataset):
             p_max = np.max(img_data)
             # 避免除以零
             if p_max - p_min > 1e-5:
-                img_stretched = (img_data - p_min) / \
-                    (p_max - p_min) * 255
+                img_stretched = (img_data - p_min) / (p_max - p_min) * 255
             else:
                 img_stretched = img_data * 0  # 如果所有值都一样，则为黑色
 
@@ -178,13 +146,13 @@ class TiffSegmentationDataset(Dataset):
 
         # Show image
         plt.figure(figsize=(8, 8))
-        plt.imshow(img_data, cmap='gray')
+        plt.imshow(img_data, cmap="gray")
         plt.title(title)
-        plt.axis('off')
+        plt.axis("off")
         plt.show()
 
 
-# dataset = TiffSegmentationDataset(
+# dataset = TiffDataset(
 #     'data_isbi/train/images', 'data_isbi/train/labels')
 
 # indices = len(dataset)
@@ -212,5 +180,5 @@ class TiffSegmentationDataset(Dataset):
 
 # print(len(images))
 
-# TiffSegmentationDataset.show_img(images[0],streth=True,title="a")
-# TiffSegmentationDataset.show_img(mask[0],streth=True,title="a")
+# TiffDataset.show_img(images[0],streth=True,title="a")
+# TiffDataset.show_img(mask[0],streth=True,title="a")

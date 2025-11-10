@@ -1,10 +1,9 @@
+from model import UNet
+from data import TiffDataset
+
 import torch
 import numpy as np
-import pandas as pd 
-
-from model import UNet
-from data import TiffSegmentationDataset
-
+import pandas as pd
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset, Subset
 import matplotlib.pyplot as plt
@@ -19,7 +18,7 @@ torch.device(device)
 print("Using device:", device)
 
 # Load Data
-dataset = TiffSegmentationDataset(
+dataset = TiffDataset(
     'data_isbi/train/images', 'data_isbi/train/labels')
 
 indices = len(dataset)
@@ -43,8 +42,8 @@ test_loader = DataLoader(test_set, batch_size=batch_size,
 
 
 # Test
-BATCH_SIZE=4
-MODEL_PATH="best_unet_model.pth"
+BATCH_SIZE = 4
+MODEL_PATH = "best_unet_model.pth"
 model = UNet(in_channels=1, out_channels=2).to(device)
 
 try:
@@ -53,16 +52,15 @@ except FileNotFoundError:
     exit()
 
 model.eval()
-# criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
 criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()
 
 total_test_loss = 0.0
 
-with torch.no_grad(): 
+with torch.no_grad():
     for images, masks in test_loader:
         images = images.to(device)
         masks = masks.to(device)
-        
+
         masks_pred = model(images)
         loss = criterion(masks_pred, masks)
         total_test_loss += loss.item()
@@ -70,18 +68,15 @@ with torch.no_grad():
 avg_test_loss = total_test_loss / len(test_loader)
 print(f" (Test Loss): {avg_test_loss:.4f}")
 
-# --- 6. 可视化预测结果 ---
 try:
     images, masks = next(iter(test_loader))
     images = images.to(device)
-    
+
     with torch.no_grad():
         masks_pred = model(images)
 
-    
-    # 将输 (logits) 转换为 0-1 之间的概率
     preds = torch.sigmoid(masks_pred)
-    preds = (preds > 0.5).float() # 使用 0.5 作为阈值
+    preds = (preds > 0.5).float()
 
     images_np = images.cpu().numpy()
     masks_np = masks.cpu().numpy()
@@ -89,30 +84,29 @@ try:
 
     num_to_show = min(BATCH_SIZE, 4)
     fig, axes = plt.subplots(num_to_show, 3, figsize=(15, num_to_show * 5))
-    
+
     if num_to_show == 1:
         axes = [axes]
 
-    print(images_np.shape,masks_np.shape,preds_np.shape)
+    print(images_np.shape, masks_np.shape, preds_np.shape)
 
     for i in range(num_to_show):
         axes[i, 0].imshow(np.squeeze(images_np[i]), cmap='gray')
         axes[i, 0].set_title("(Original Image)")
         axes[i, 0].axis('off')
-        
+
         axes[i, 1].imshow(np.squeeze(masks_np[i]), cmap='gray')
         axes[i, 1].set_title("(True Mask)")
         axes[i, 1].axis('off')
-        
+
         final_prediction = np.argmax(preds_np[i], axis=0)
         axes[i, 2].imshow(np.squeeze(final_prediction), cmap='gray')
         axes[i, 2].set_title("(Predicted Mask)")
         axes[i, 2].axis('off')
 
     plt.tight_layout()
-    plt.show() 
-    
+    plt.show()
+
 
 except StopIteration:
     print(f"Error: StopIteration")
-

@@ -1,28 +1,26 @@
+from model import UNet
+from dataset import TiffDataset
+
 import torch
+import torch.nn as nn
 import numpy as np
 import pandas as pd
-from model import UNet
-from data import TiffSegmentationDataset
-
-import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset, Subset
 
 device = "cpu"
 if torch.cuda.is_available():
     device = "cuda"
-# elif torch.backends.mps.is_available():
-#     device = "mps"
+elif torch.backends.mps.is_available():
+    device = "mps"
 torch.device(device)
 print("Using device:", device)
 
 # Load Data
-dataset = TiffSegmentationDataset(
-    'data_isbi/train/images', 'data_isbi/train/labels')
+dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels')
 
 indices = len(dataset)
-
-train_size = len(dataset) - int(0.2*len(dataset))
-test_size = len(dataset) - train_size
+train_size = indices - int(0.2*indices)
+test_size = indices - train_size
 
 # Create random splits for train and test sets
 train_set, test_set = torch.utils.data.random_split(
@@ -35,8 +33,9 @@ print(f"Test set size: {len(test_set)}")
 batch_size = 1
 train_loader = DataLoader(
     train_set, batch_size=batch_size, shuffle=True, drop_last=True)
-test_loader = DataLoader(test_set, batch_size=batch_size,
-                         shuffle=False, drop_last=False)
+
+test_loader = DataLoader(
+    test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
 
 num_epochs = 10
@@ -44,9 +43,9 @@ LEARNING_RATE = 1e-3
 
 model = UNet(in_channels=1, out_channels=2).to(device=device)
 criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()
-# criterion = model.loss_fn
 optimizer = torch.optim.SGD(
     model.parameters(), lr=LEARNING_RATE, momentum=0.99)
+
 best_val_loss = float('inf')
 
 for epoch in range(num_epochs):
@@ -85,7 +84,7 @@ for epoch in range(num_epochs):
 
     if epoch % (num_epochs/10) == 0:
         print(
-            f"Epoch [{epoch}] | trainning loss : {avg_train_loss:.4f} | val loss: {avg_val_loss:.4f}")
+            f"Epoch [{epoch}] | training loss : {avg_train_loss:.4f} | val loss: {avg_val_loss:.4f}")
 
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss
