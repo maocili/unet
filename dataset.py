@@ -9,8 +9,8 @@ from torch.utils.data import Dataset, DataLoader
 
 from torchvision.transforms import v2
 
-from transformers import ToBinaryMask
-
+from transformers import ISBIImageTransformers, ISBILableTransformers
+from transformers import MicroImageTransformers, MicroLableTransformers
 
 """
 # dataset = TiffSegmentationDataset('data_isbi/train/images','data_isbi/train/labels')
@@ -41,17 +41,6 @@ from transformers import ToBinaryMask
 # TiffSegmentationDataset.show_img(mask[0],streth=True,title="a")
 
 """
-
-ISBIImageTransformers = v2.Compose([
-    v2.ToImage(),
-    v2.ToDtype(torch.float32, scale=True),
-    v2.Normalize(mean=[0.15], std=[0.35]),
-    v2.GaussianBlur(kernel_size=(5, 5), sigma=(2.0)),
-])
-
-ISBILableTransformers = v2.Compose([
-    ToBinaryMask(),
-])
 
 
 class TiffDataset(Dataset):
@@ -120,9 +109,11 @@ class TiffDataset(Dataset):
             image = self.img_transforms(image)
 
         if self.lable_transforms:
-            lable = self.lable_transforms(lable)
+            new_lable = self.lable_transforms(lable)
 
-        return (image, lable)
+        old_lable = ISBILableTransformers(lable)
+
+        return (image, new_lable, old_lable)
 
     @staticmethod
     def show_img(
@@ -145,16 +136,16 @@ class TiffDataset(Dataset):
         print("Min intensity:", np.min(img_data))
         print("Max intensity:", np.max(img_data))
 
-        if streth:
-            p_min = np.min(img_data)
-            p_max = np.max(img_data)
-            if p_max - p_min > 1e-5:
-                img_stretched = (img_data - p_min) / (p_max - p_min) * 255
-            else:
-                img_stretched = img_data * 0
+        # if streth:
+        #     p_min = np.min(img_data)
+        #     p_max = np.max(img_data)
+        #     if p_max - p_min > 1e-5:
+        #         img_stretched = (img_data - p_min) / (p_max - p_min) * 255
+        #     else:
+        #         img_stretched = img_data * 0
 
-            img_stretched = img_stretched.astype(np.uint8)
-            img_data = img_stretched
+        #     img_stretched = img_stretched.astype(np.uint8)
+        #     img_data = img_stretched
 
         # Show image
         plt.figure(figsize=(8, 8))
@@ -164,14 +155,14 @@ class TiffDataset(Dataset):
         plt.show()
 
 
-
 if __name__ == '__main__':
     if sys.platform.startswith('win'):
         os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-
-    dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
-                            img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
+    # dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
+    #                         img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
+    dataset = TiffDataset(
+        'data/Original Images', 'data/Original Masks', MicroImageTransformers, MicroLableTransformers)
 
     indices = len(dataset)
 
@@ -193,12 +184,10 @@ if __name__ == '__main__':
     test_loader = DataLoader(
         test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
+    images, lables, old = next(iter(train_loader))
+    print(images.shape, lables.shape, old)
 
-
-    images, lables = next(iter(train_loader))
-    print(images.shape, lables.shape)
-
-    for i,j in zip(images, lables):
+    for i, j, k in zip(images, lables, old):
         TiffDataset.show_img(i, streth=True, title="Orginal")
         TiffDataset.show_img(j, streth=True, title="Masks")
-
+        TiffDataset.show_img(k, streth=True, title="Masks")

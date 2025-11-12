@@ -1,7 +1,8 @@
 import sys
 import os
 from model import UNet
-from dataset import TiffDataset, ISBIImageTransformers, ISBILableTransformers
+from dataset import TiffDataset
+from transformers import ISBIImageTransformers,ISBILableTransformers
 
 import torch
 import numpy as np
@@ -23,7 +24,7 @@ print("Using device:", device)
 
 # Load Data
 dataset = TiffDataset(
-    'data_isbi/train/images', 'data_isbi/train/labels', ISBIImageTransformers, ISBILableTransformers)
+    'data/Original Images', 'data/Original Masks', ISBIImageTransformers, ISBILableTransformers)
 
 indices = len(dataset)
 
@@ -78,7 +79,7 @@ avg_test_loss = total_test_loss / len(test_loader)
 print(f" (Test Loss): {avg_test_loss:.4f}")
 
 
-page = 3
+page = 1
 for i in range(0,page):
     images_np = image_list[i]
     masks_np = masks_list[i]
@@ -104,6 +105,7 @@ for i in range(0,page):
         axes[i, 2].set_title("(Predicted Mask)")
         axes[i, 2].axis('off')
 
+    
     plt.tight_layout()
     plt.show()
 

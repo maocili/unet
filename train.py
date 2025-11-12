@@ -1,5 +1,6 @@
 from model import UNet
-from dataset import TiffDataset, ISBIImageTransformers, ISBILableTransformers
+from dataset import TiffDataset
+from transformers import ISBIImageTransformers,ISBILableTransformers
 
 import torch
 import torch.nn as nn
@@ -16,7 +17,7 @@ torch.device(device)
 print("Using device:", device)
 
 # Load Data
-dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
+dataset = TiffDataset('data/Original Images', 'data/Original Masks',
                       img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
 
 indices = len(dataset)
