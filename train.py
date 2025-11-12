@@ -40,7 +40,7 @@ test_loader = DataLoader(
 
 
 num_epochs = 10
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 1e-3
 
 model = UNet(in_channels=1, out_channels=2).to(device=device)
 criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()

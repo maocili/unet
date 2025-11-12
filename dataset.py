@@ -1,14 +1,16 @@
 import os
 import re
+import sys
 import torch
 import numpy as np
 import tifffile as tiff
 import matplotlib.pyplot as plt
-from torch.utils.data import Dataset, DataLoader, Subset
+from torch.utils.data import Dataset, DataLoader
 
 from torchvision.transforms import v2
 
 from transformers import ToBinaryMask
+
 
 """
 # dataset = TiffSegmentationDataset('data_isbi/train/images','data_isbi/train/labels')
@@ -44,12 +46,11 @@ ISBIImageTransformers = v2.Compose([
     v2.ToImage(),
     v2.ToDtype(torch.float32, scale=True),
     v2.Normalize(mean=[0.15], std=[0.35]),
-    v2.ElasticTransform(alpha=80.0, sigma=8.0),
+    v2.GaussianBlur(kernel_size=(5, 5), sigma=(2.0)),
 ])
 
 ISBILableTransformers = v2.Compose([
     ToBinaryMask(),
-    v2.ToDtype(torch.long, scale=True)
 ])
 
 
@@ -163,9 +164,14 @@ class TiffDataset(Dataset):
         plt.show()
 
 
+
 if __name__ == '__main__':
+    if sys.platform.startswith('win'):
+        os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+
     dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
-                          img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
+                            img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
 
     indices = len(dataset)
 
@@ -182,15 +188,17 @@ if __name__ == '__main__':
 
     batch_size = 4
 
-    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, drop_last=False)
+    train_loader = DataLoader(
+        train_set, batch_size=batch_size, shuffle=True, drop_last=True)
+    test_loader = DataLoader(
+        test_set, batch_size=batch_size, shuffle=False, drop_last=False)
+
+
 
     images, lables = next(iter(train_loader))
     print(images.shape, lables.shape)
 
-    for i in images:
+    for i,j in zip(images, lables):
         TiffDataset.show_img(i, streth=True, title="Orginal")
-    # TiffDataset.show_img(lables[0], streth=True, title="Orginal")
-    # TiffDataset.show_img(blurred_images[0], streth=True, title="Lable")
-    # TiffDataset.show_img(blurred_images[1], streth=True, title="Lable")
-    # TiffDataset.show_img(blurred_images[2], streth=True, title="Lable")
+        TiffDataset.show_img(j, streth=True, title="Masks")
+

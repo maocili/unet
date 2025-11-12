@@ -1,3 +1,5 @@
+import sys
+import os
 from model import UNet
 from dataset import TiffDataset, ISBIImageTransformers, ISBILableTransformers
 
@@ -8,6 +10,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset, Subset
 import matplotlib.pyplot as plt
 
+if sys.platform.startswith('win'):
+    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 device = "cpu"
 if torch.cuda.is_available():
@@ -54,41 +58,39 @@ criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogit
 
 total_test_loss = 0.0
 
+image_list = []
+masks_list = []
+preds_list = []
 with torch.no_grad():
     for images, masks in test_loader:
         images = images.to(device)
         masks = masks.to(device)
-
         masks_pred = model(images)
+
+        image_list.append(images.cpu().numpy())
+        masks_list.append(masks.cpu().numpy())
+        preds_list.append(masks_pred.cpu().numpy())
+
         loss = criterion(masks_pred, masks)
         total_test_loss += loss.item()
 
 avg_test_loss = total_test_loss / len(test_loader)
 print(f" (Test Loss): {avg_test_loss:.4f}")
 
-try:
-    images, masks = next(iter(test_loader))
-    images = images.to(device)
 
-    with torch.no_grad():
-        masks_pred = model(images)
+page = 3
+for i in range(0,page):
+    images_np = image_list[i]
+    masks_np = masks_list[i]
+    preds_np = preds_list[i]
 
-    preds = torch.sigmoid(masks_pred)
-    preds = (preds > 0.5).float()
 
-    images_np = images.cpu().numpy()
-    masks_np = masks.cpu().numpy()
-    preds_np = preds.cpu().numpy()
+    fig, axes = plt.subplots(BATCH_SIZE, 3, figsize=(15, BATCH_SIZE * 5))
 
-    num_to_show = min(BATCH_SIZE, 4)
-    fig, axes = plt.subplots(num_to_show, 3, figsize=(15, num_to_show * 5))
-
-    if num_to_show == 1:
+    if BATCH_SIZE == 1:
         axes = [axes]
 
-    print(images_np.shape, masks_np.shape, preds_np.shape)
-
-    for i in range(num_to_show):
+    for i in range(BATCH_SIZE):
         axes[i, 0].imshow(np.squeeze(images_np[i]), cmap='gray')
         axes[i, 0].set_title("(Original Image)")
         axes[i, 0].axis('off')
@@ -106,5 +108,3 @@ try:
     plt.show()
 
 
-except StopIteration:
-    print(f"Error: StopIteration")
