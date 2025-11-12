@@ -1,5 +1,5 @@
 from model import UNet
-from data import TiffDataset
+from dataset import TiffDataset, ISBIImageTransformers, ISBILableTransformers
 
 import torch
 import numpy as np
@@ -19,7 +19,7 @@ print("Using device:", device)
 
 # Load Data
 dataset = TiffDataset(
-    'data_isbi/train/images', 'data_isbi/train/labels')
+    'data_isbi/train/images', 'data_isbi/train/labels', ISBIImageTransformers, ISBILableTransformers)
 
 indices = len(dataset)
 
@@ -34,12 +34,11 @@ train_set, test_set = torch.utils.data.random_split(
 print(f"Training set size: {len(train_set)}")
 print(f"Test set size: {len(test_set)}")
 
-BATCH_SIZE = 1
+BATCH_SIZE = 4
 train_loader = DataLoader(
     train_set, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
 test_loader = DataLoader(test_set, batch_size=BATCH_SIZE,
                          shuffle=False, drop_last=False)
-
 
 # Test
 MODEL_PATH = "best_unet_model.pth"

@@ -6,6 +6,10 @@ import tifffile as tiff
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader, Subset
 
+from torchvision.transforms import v2
+
+from transformers import ToBinaryMask
+
 """
 # dataset = TiffSegmentationDataset('data_isbi/train/images','data_isbi/train/labels')
 
@@ -36,17 +40,30 @@ from torch.utils.data import Dataset, DataLoader, Subset
 
 """
 
+ISBIImageTransformers = v2.Compose([
+    v2.ToImage(),
+    v2.ToDtype(torch.float32, scale=True),
+    v2.Normalize(mean=[0.15], std=[0.35]),
+    v2.ElasticTransform(alpha=80.0, sigma=8.0),
+])
+
+ISBILableTransformers = v2.Compose([
+    ToBinaryMask(),
+    v2.ToDtype(torch.long, scale=True)
+])
+
 
 class TiffDataset(Dataset):
-    def __init__(self, image_path: str, masks_path: str, transform=None):
+    def __init__(self, image_path: str, masks_path: str, img_transforms=None, label_transforms=None):
         super().__init__()
 
         self.file_supports = ("tif", "tiff")
         self.image_path_dir = image_path
         self.mask_path_dir = masks_path
         self.file_pairs = self.__get_file_pairs()
-        
-        self.transform = transform
+
+        self.img_transforms = img_transforms
+        self.lable_transforms = label_transforms
 
     def __get_numeric_key(self, filename):
         for t in self.file_supports:
@@ -94,28 +111,17 @@ class TiffDataset(Dataset):
         return len(self.file_pairs)
 
     def __getitem__(self, idx):
-        image_path, mask_path = self.file_pairs[idx]
+        image_path, lable_path = self.file_pairs[idx]
         image = tiff.imread(image_path)  # (H, W)
-        mask = tiff.imread(mask_path)
-        if image.ndim == 2:
-            image = np.expand_dims(image, axis=0)
+        lable = tiff.imread(lable_path)
 
-        if mask.ndim == 2:
-            mask = mask.reshape(-1, 1)
-            # mask = np.expand_dims(mask, axis=0)
+        if self.img_transforms:
+            image = self.img_transforms(image)
 
-        mask = mask >= 255 / 2
-        mask = mask.astype(np.uint8)
-        mask = mask.reshape(512, 512)
+        if self.lable_transforms:
+            lable = self.lable_transforms(lable)
 
-        image_tensor = torch.from_numpy(image).float()
-        mask_tensor = torch.from_numpy(mask).long()
-
-        sample = {'image': image_tensor, 'masks': mask_tensor}
-        if self.transform:
-            return self.transform(sample)
-        
-        return image_tensor, mask_tensor
+        return (image, lable)
 
     @staticmethod
     def show_img(
@@ -141,11 +147,10 @@ class TiffDataset(Dataset):
         if streth:
             p_min = np.min(img_data)
             p_max = np.max(img_data)
-            # 避免除以零
             if p_max - p_min > 1e-5:
                 img_stretched = (img_data - p_min) / (p_max - p_min) * 255
             else:
-                img_stretched = img_data * 0  # 如果所有值都一样，则为黑色
+                img_stretched = img_data * 0
 
             img_stretched = img_stretched.astype(np.uint8)
             img_data = img_stretched
@@ -156,3 +161,36 @@ class TiffDataset(Dataset):
         plt.title(title)
         plt.axis("off")
         plt.show()
+
+
+if __name__ == '__main__':
+    dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
+                          img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
+
+    indices = len(dataset)
+
+    train_size = len(dataset) - int(0.2*len(dataset))
+    test_size = len(dataset) - train_size
+
+    # Create random splits for train and test sets
+    train_set, test_set = torch.utils.data.random_split(
+        dataset,
+        [train_size, test_size]
+    )
+    print(f"Training set size: {len(train_set)}")
+    print(f"Test set size: {len(test_set)}")
+
+    batch_size = 4
+
+    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True)
+    test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, drop_last=False)
+
+    images, lables = next(iter(train_loader))
+    print(images.shape, lables.shape)
+
+    for i in images:
+        TiffDataset.show_img(i, streth=True, title="Orginal")
+    # TiffDataset.show_img(lables[0], streth=True, title="Orginal")
+    # TiffDataset.show_img(blurred_images[0], streth=True, title="Lable")
+    # TiffDataset.show_img(blurred_images[1], streth=True, title="Lable")
+    # TiffDataset.show_img(blurred_images[2], streth=True, title="Lable")

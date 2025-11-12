@@ -1,5 +1,5 @@
 from model import UNet
-from dataset import TiffDataset
+from dataset import TiffDataset, ISBIImageTransformers, ISBILableTransformers
 
 import torch
 import torch.nn as nn
@@ -16,7 +16,8 @@ torch.device(device)
 print("Using device:", device)
 
 # Load Data
-dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels')
+dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
+                      img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
 
 indices = len(dataset)
 train_size = indices - int(0.2*indices)
@@ -39,7 +40,7 @@ test_loader = DataLoader(
 
 
 num_epochs = 10
-LEARNING_RATE = 1e-3
+LEARNING_RATE = 1e-4
 
 model = UNet(in_channels=1, out_channels=2).to(device=device)
 criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()
