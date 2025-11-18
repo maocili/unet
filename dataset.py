@@ -3,51 +3,21 @@ import re
 import sys
 import torch
 import numpy as np
-import tifffile as tiff
+# import tifffile as tiff
+import imageio.v2 as iio
 import matplotlib.pyplot as plt
+
 from torch.utils.data import Dataset, DataLoader
-
 from torchvision.transforms import v2
-
 from transformers import ISBIImageTransformers, ISBILableTransformers
 from transformers import MicroImageTransformers, MicroLableTransformers
-
-"""
-# dataset = TiffSegmentationDataset('data_isbi/train/images','data_isbi/train/labels')
-
-# indices = len(dataset)
-
-# train_size = len(dataset) - int(0.2*len(dataset))
-# test_size = len(dataset) - train_size
-
-# # Create random splits for train and test sets
-# train_set, test_set = torch.utils.data.random_split(
-#     dataset, 
-#     [train_size, test_size]
-# )
-# print(f"Training set size: {len(train_set)}")
-# print(f"Test set size: {len(test_set)}")
-
-# batch_size = 4
-
-# train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True)
-# test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, drop_last=False)
-
-# images,mask = next(iter(train_loader))
-# print(images.shape,mask.shape)
-
-# print(len(images))
-# TiffSegmentationDataset.show_img(images[0],streth=True,title="a")
-# TiffSegmentationDataset.show_img(mask[0],streth=True,title="a")
-
-"""
 
 
 class TiffDataset(Dataset):
     def __init__(self, image_path: str, masks_path: str, img_transforms=None, label_transforms=None):
         super().__init__()
 
-        self.file_supports = ("tif", "tiff")
+        self.file_supports = ("tif", "tiff", "png")
         self.image_path_dir = image_path
         self.mask_path_dir = masks_path
         self.file_pairs = self.__get_file_pairs()
@@ -62,6 +32,9 @@ class TiffDataset(Dataset):
             if matches:
                 return int(matches[-1])
         return None
+
+    def get_list(self):
+        return self.__get_file_pairs()
 
     def __get_file_pairs(self):
         pairs_map = {}
@@ -102,18 +75,16 @@ class TiffDataset(Dataset):
 
     def __getitem__(self, idx):
         image_path, lable_path = self.file_pairs[idx]
-        image = tiff.imread(image_path)  # (H, W)
-        lable = tiff.imread(lable_path)
+        image = iio.imread(image_path)  # (H, W)
+        lable = iio.imread(lable_path)  # (H, W)
 
         if self.img_transforms:
             image = self.img_transforms(image)
 
         if self.lable_transforms:
-            new_lable = self.lable_transforms(lable)
+            lable = self.lable_transforms(lable)
 
-        old_lable = ISBILableTransformers(lable)
-
-        return (image, new_lable, old_lable)
+        return (image, lable)
 
     @staticmethod
     def show_img(
@@ -136,17 +107,6 @@ class TiffDataset(Dataset):
         print("Min intensity:", np.min(img_data))
         print("Max intensity:", np.max(img_data))
 
-        # if streth:
-        #     p_min = np.min(img_data)
-        #     p_max = np.max(img_data)
-        #     if p_max - p_min > 1e-5:
-        #         img_stretched = (img_data - p_min) / (p_max - p_min) * 255
-        #     else:
-        #         img_stretched = img_data * 0
-
-        #     img_stretched = img_stretched.astype(np.uint8)
-        #     img_data = img_stretched
-
         # Show image
         plt.figure(figsize=(8, 8))
         plt.imshow(img_data, cmap="gray")
@@ -162,7 +122,7 @@ if __name__ == '__main__':
     # dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
     #                         img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
     dataset = TiffDataset(
-        'data/Original Images', 'data/Original Masks', MicroImageTransformers, MicroLableTransformers)
+        'data/image', 'data/lable')
 
     indices = len(dataset)
 
@@ -184,10 +144,9 @@ if __name__ == '__main__':
     test_loader = DataLoader(
         test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
-    images, lables, old = next(iter(train_loader))
-    print(images.shape, lables.shape, old)
-
-    for i, j, k in zip(images, lables, old):
+    images, lables = next(iter(train_loader))
+    # print(images.shape, lables.shape, old)
+ 
+    for i, j in zip(images, lables):
         TiffDataset.show_img(i, streth=True, title="Orginal")
         TiffDataset.show_img(j, streth=True, title="Masks")
-        TiffDataset.show_img(k, streth=True, title="Masks")

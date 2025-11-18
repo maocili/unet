@@ -45,13 +45,6 @@ transform_pipeline = T.Compose([
     T.ToImage(),  # Converts PIL Image (H, W, C) to Tensor (C, H, W)
     T.ToDtype(torch.float32, scale=True),  # Normalize to [0.0, 1.0]
     # --- Transforms from your list ---
-    T.RandomAffine(
-        degrees=15,
-        translate=(0.1, 0.1),
-        scale=(0.9, 1.2),
-        interpolation=T.InterpolationMode.BILINEAR,
-        fill=0.5,
-    ),
     T.RandomHorizontalFlip(p=0.8),
     T.RandomVerticalFlip(p=0.8),
     T.ToDtype(torch.uint8, scale=True)
