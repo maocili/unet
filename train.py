@@ -1,6 +1,6 @@
 from model import UNet
 from dataset import TiffDataset
-from transformers import ISBIImageTransformers,ISBILableTransformers
+from transformers import ISBIImageTransformers, ISBILableTransformers
 
 import torch
 import torch.nn as nn
@@ -17,7 +17,7 @@ torch.device(device)
 print("Using device:", device)
 
 # Load Data
-dataset = TiffDataset('data/Original Images', 'data/Original Masks',
+dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
                       img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
 
 indices = len(dataset)
@@ -45,8 +45,7 @@ LEARNING_RATE = 1e-3
 
 model = UNet(in_channels=1, out_channels=2).to(device=device)
 criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()
-optimizer = torch.optim.SGD(
-    model.parameters(), lr=LEARNING_RATE, momentum=0.99)
+optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.99)
 
 best_val_loss = float('inf')
 

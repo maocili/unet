@@ -121,8 +121,7 @@ if __name__ == '__main__':
 
     # dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
     #                         img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
-    dataset = TiffDataset(
-        'data/image', 'data/lable')
+    dataset = TiffDataset('data/image', 'data/lable', img_transforms=MicroImageTransformers,label_transforms=MicroLableTransformers)
 
     indices = len(dataset)
 
