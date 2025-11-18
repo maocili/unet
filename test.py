@@ -1,191 +1,104 @@
 import sys
 import os
-
 from model import UNet
-
 from dataset import TiffDataset
-
-from transformers import ISBIImageTransformers,ISBILabelTransformers
+from transformers import ISBIImageTransformers, ISBILabelTransformers
 
 
 import torch
-
 import numpy as np
 import pandas as pd
-
 import torch.nn as nn
-
 from torch.utils.data import DataLoader, Dataset, Subset
-
 import matplotlib.pyplot as plt
 
 
 if sys.platform.startswith('win'):
-
     os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 
 device = "cpu"
-
 if torch.cuda.is_available():
-
     device = "cuda"
-
 elif torch.backends.mps.is_available():
-
     device = "mps"
-
 torch.device(device)
-
 print("Using device:", device)
 
 
 # Load Data
-
 dataset = TiffDataset(
-
     'data/Original Images', 'data/Original Masks', ISBIImageTransformers, ISBILabelTransformers)
-
 indices = len(dataset)
-
-
 train_size = len(dataset) - int(0.2*len(dataset))
-
 test_size = len(dataset) - train_size
 
 
 # Create random splits for train and test sets
-
 train_set, test_set = torch.utils.data.random_split(
     dataset,
-
     [train_size, test_size]
 )
 
 print(f"Training set size: {len(train_set)}")
-
 print(f"Test set size: {len(test_set)}")
 
 
 BATCH_SIZE = 4
-
 train_loader = DataLoader(
-
     train_set, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
-
 test_loader = DataLoader(test_set, batch_size=BATCH_SIZE,
-
                          shuffle=False, drop_last=False)
 
 
 # Test
-
 MODEL_PATH = "best_unet_model.pth"
-
 model = UNet(in_channels=1, out_channels=2).to(device)
 
-
 try:
-
     model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
-
 except FileNotFoundError:
-
     exit()
 
-
 model.eval()
-
 criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()
-
-
 total_test_loss = 0.0
-
-
 image_list = []
-
 masks_list = []
-
 preds_list = []
-
 with torch.no_grad():
-
     for images, masks in test_loader:
-
         images = images.to(device)
-
         masks = masks.to(device)
-
         masks_pred = model(images)
-
-
         image_list.append(images.cpu().numpy())
-
         masks_list.append(masks.cpu().numpy())
-
         preds_list.append(masks_pred.cpu().numpy())
-
-
         loss = criterion(masks_pred, masks)
-
         total_test_loss += loss.item()
 
-
 avg_test_loss = total_test_loss / len(test_loader)
-
 print(f" (Test Loss): {avg_test_loss:.4f}")
 
-
-
 page = 1
-
-for i in range(0,page):
-
+for i in range(0, page):
     images_np = image_list[i]
-
     masks_np = masks_list[i]
-
     preds_np = preds_list[i]
-
-
-
     fig, axes = plt.subplots(BATCH_SIZE, 3, figsize=(15, BATCH_SIZE * 5))
-
-
     if BATCH_SIZE == 1:
-
         axes = [axes]
 
-
     for i in range(BATCH_SIZE):
-
         axes[i, 0].imshow(np.squeeze(images_np[i]), cmap='gray')
-
         axes[i, 0].set_title("(Original Image)")
-
         axes[i, 0].axis('off')
-
-
         axes[i, 1].imshow(np.squeeze(masks_np[i]), cmap='gray')
-
         axes[i, 1].set_title("(True Mask)")
-
         axes[i, 1].axis('off')
-
-
         final_prediction = np.argmax(preds_np[i], axis=0)
-
         axes[i, 2].imshow(np.squeeze(final_prediction), cmap='gray')
-
         axes[i, 2].set_title("(Predicted Mask)")
-
         axes[i, 2].axis('off')
-
-    
-
     plt.tight_layout()
-
     plt.show()
-
-
-
