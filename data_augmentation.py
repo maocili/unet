@@ -75,9 +75,9 @@ for ipath, lpath in dataset:
 import imageio.v2 as iio
 def make_path(idx):
     ipath = "data/image/"+ str(idx) + ".png"
-    lpath = "data/lable/"+ str(idx) + ".png"
+    lpath = "data/label/"+ str(idx) + ".png"
 
-    os.makedirs("data/lable/",exist_ok=True)
+    os.makedirs("data/label/",exist_ok=True)
     os.makedirs("data/image/",exist_ok=True)
     return ipath,lpath
 

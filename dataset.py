@@ -3,14 +3,12 @@ import re
 import sys
 import torch
 import numpy as np
-# import tifffile as tiff
 import imageio.v2 as iio
 import matplotlib.pyplot as plt
-
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import v2
-from transformers import ISBIImageTransformers, ISBILableTransformers
-from transformers import MicroImageTransformers, MicroLableTransformers
+from transformers import ISBIImageTransformers, ISBILabelTransformers
+from transformers import MicroImageTransformers, MicroLabelTransformers
 
 
 class TiffDataset(Dataset):
@@ -23,7 +21,7 @@ class TiffDataset(Dataset):
         self.file_pairs = self.__get_file_pairs()
 
         self.img_transforms = img_transforms
-        self.lable_transforms = label_transforms
+        self.label_transforms = label_transforms
 
     def __get_numeric_key(self, filename):
         for t in self.file_supports:
@@ -38,7 +36,6 @@ class TiffDataset(Dataset):
 
     def __get_file_pairs(self):
         pairs_map = {}
-
         try:
             ilist = os.listdir(self.image_path_dir)
         except FileNotFoundError:
@@ -54,6 +51,7 @@ class TiffDataset(Dataset):
 
         try:
             mlist = os.listdir(self.mask_path_dir)
+
         except FileNotFoundError:
             print(f"Error: file not found {self.mask_path_dir}")
             return []
@@ -62,6 +60,7 @@ class TiffDataset(Dataset):
         for f in mlist:
             if not f.endswith(self.file_supports):
                 continue
+
             idx = self.__get_numeric_key(f)
             if idx in pairs_map:
                 pairs_map[idx].append(os.path.join(self.mask_path_dir, f))
@@ -74,17 +73,18 @@ class TiffDataset(Dataset):
         return len(self.file_pairs)
 
     def __getitem__(self, idx):
-        image_path, lable_path = self.file_pairs[idx]
+        image_path, label_path = self.file_pairs[idx]
         image = iio.imread(image_path)  # (H, W)
-        lable = iio.imread(lable_path)  # (H, W)
+        label = iio.imread(label_path)  # (H, W)
 
         if self.img_transforms:
             image = self.img_transforms(image)
 
-        if self.lable_transforms:
-            lable = self.lable_transforms(lable)
+        if self.label_transforms:
 
-        return (image, lable)
+            label = self.label_transforms(label)
+
+        return (image, label)
 
     @staticmethod
     def show_img(
@@ -120,11 +120,13 @@ if __name__ == '__main__':
         os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
     # dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
-    #                         img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
-    dataset = TiffDataset('data/image', 'data/lable', img_transforms=MicroImageTransformers,label_transforms=MicroLableTransformers)
+
+    #                         img_transforms=ISBIImageTransformers, label_transforms=ISBIlabelTransformers)
+
+    dataset = TiffDataset('data/image', 'data/label', img_transforms=MicroImageTransformers,
+                          label_transforms=MicroLabelTransformers)
 
     indices = len(dataset)
-
     train_size = len(dataset) - int(0.2*len(dataset))
     test_size = len(dataset) - train_size
 
@@ -133,19 +135,20 @@ if __name__ == '__main__':
         dataset,
         [train_size, test_size]
     )
+
     print(f"Training set size: {len(train_set)}")
     print(f"Test set size: {len(test_set)}")
 
     batch_size = 4
-
     train_loader = DataLoader(
         train_set, batch_size=batch_size, shuffle=True, drop_last=True)
     test_loader = DataLoader(
         test_set, batch_size=batch_size, shuffle=False, drop_last=False)
+    images, labels = next(iter(train_loader))
 
-    images, lables = next(iter(train_loader))
-    # print(images.shape, lables.shape, old)
- 
-    for i, j in zip(images, lables):
+    # print(images.shape, labels.shape, old)
+
+    for i, j in zip(images, labels):
         TiffDataset.show_img(i, streth=True, title="Orginal")
         TiffDataset.show_img(j, streth=True, title="Masks")
+        break

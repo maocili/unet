@@ -1,6 +1,7 @@
 from model import UNet
 from dataset import TiffDataset
-from transformers import ISBIImageTransformers, ISBILableTransformers
+from transformers import ISBIImageTransformers, ISBILabelTransformers
+from transformers import MicroImageTransformers, MicroLabelTransformers
 
 import torch
 import torch.nn as nn
@@ -17,8 +18,10 @@ torch.device(device)
 print("Using device:", device)
 
 # Load Data
-dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
-                      img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
+# dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
+#                       img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
+dataset = TiffDataset('data/image', 'data/label',
+                      img_transforms=MicroImageTransformers, label_transforms=MicroLabelTransformers)
 
 indices = len(dataset)
 train_size = indices - int(0.2*indices)
@@ -39,6 +42,7 @@ train_loader = DataLoader(
 test_loader = DataLoader(
     test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
+images,label = next(iter(train_loader))
 
 num_epochs = 10
 LEARNING_RATE = 1e-3

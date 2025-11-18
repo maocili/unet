@@ -1,4 +1,3 @@
-
 import numpy as np
 import torch
 from torchvision.transforms import v2
@@ -40,17 +39,16 @@ class ToMicroMasks(v2.Transform):
         if isinstance(inpt, torch.Tensor):
             inpt = inpt.cpu().numpy()
 
-        img_stretched = (inpt - np.min(inpt)) / \
-            (np.max(inpt) - np.min(inpt)) * 255
+        img_stretched = (inpt - np.min(inpt)) / (np.max(inpt) - np.min(inpt)) * 255
         img_stretched = img_stretched.astype(np.uint8)
 
         final_masks = np.zeros_like(img_stretched, dtype=np.uint8)
 
-        threhold = [5,250]
+        threhold = [5, 250]
         final_masks[(img_stretched > threhold[0]) & (img_stretched < threhold[1])] = 128
         final_masks[img_stretched < threhold[0]] = 0
         final_masks[(img_stretched > threhold[1])] = 255
-  
+
         return final_masks
 
 
@@ -61,10 +59,8 @@ ISBIImageTransformers = v2.Compose([
     v2.GaussianBlur(kernel_size=(5, 5), sigma=(2.0)),
 ])
 
-ISBILableTransformers = v2.Compose([
-    # ToBinaryMask(),
-    v2.ToImage(),
-    v2.ToDtype(torch.float32, scale=True),
+ISBILabelTransformers = v2.Compose([
+    ToBinaryMask(),
 ])
 
 
@@ -75,6 +71,6 @@ MicroImageTransformers = v2.Compose([
     v2.GaussianBlur(kernel_size=(5, 5), sigma=(2.0)),
 ])
 
-MicroLableTransformers = v2.Compose([
+MicroLabelTransformers = v2.Compose([
     ToMicroMasks(),
 ])
