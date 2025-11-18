@@ -42,12 +42,11 @@ train_loader = DataLoader(
 test_loader = DataLoader(
     test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
-images,label = next(iter(train_loader))
 
 num_epochs = 10
 LEARNING_RATE = 1e-3
 
-model = UNet(in_channels=1, out_channels=2).to(device=device)
+model = UNet(in_channels=1, out_channels=3).to(device=device)
 criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.99)
 
@@ -63,7 +62,7 @@ for epoch in range(num_epochs):
 
         masks_pred = model(images)
 
-        batch_loss = criterion(masks_pred, masks)
+        batch_loss = criterion(masks_pred, masks.long())
 
         optimizer.zero_grad()
         batch_loss.backward()
@@ -81,7 +80,7 @@ for epoch in range(num_epochs):
             masks = masks.to(device)
 
             masks_pred = model(images)
-            loss = criterion(masks_pred, masks)
+            loss = criterion(masks_pred, masks.long())
 
             val_loss += loss.item()
 

@@ -45,9 +45,9 @@ class ToMicroMasks(v2.Transform):
         final_masks = np.zeros_like(img_stretched, dtype=np.uint8)
 
         threhold = [5, 250]
-        final_masks[(img_stretched > threhold[0]) & (img_stretched < threhold[1])] = 128
+        final_masks[(img_stretched > threhold[0]) & (img_stretched < threhold[1])] = 2 #127
         final_masks[img_stretched < threhold[0]] = 0
-        final_masks[(img_stretched > threhold[1])] = 255
+        final_masks[(img_stretched > threhold[1])] = 1 # 255
 
         return final_masks
 
