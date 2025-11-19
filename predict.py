@@ -1,10 +1,9 @@
 import sys
 import os
 from model import UNet
-from dataset import TiffDataset
-from transformers import ISBIImageTransformers, ISBILabelTransformers
-from transformers import MicroImageTransformers, MicroLabelTransformers
-
+from utils.dataset import TiffDataset
+from utils.transformers import MicroImageTransformers, MicroLabelTransformers
+from utils.loss_function import dice_loss
 
 import torch
 import numpy as np
@@ -53,18 +52,18 @@ test_loader = DataLoader(test_set, batch_size=BATCH_SIZE,
 
 
 # Test
-MODEL_PATH = "unet_classes2.pth"
-model = UNet(in_channels=1, out_channels=2).to(device)
+MODEL_PATH = "best_unet_model.pth"
+model = UNet(in_channels=1, out_channels=3).to(device)
 
 try:
-    model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+    model.load_state_dict(torch.load(MODEL_PATH, map_location=device, weights_only=True))
 except FileNotFoundError:
     exit()
 
 model.eval()
 
-from loss_function import dice_loss
-criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()
+ce_weight = torch.Tensor([0.5, 1, 0.5])
+ce_criterion = nn.CrossEntropyLoss(weight=ce_weight).to(device=device)
 dice_criterion = dice_loss
 
 total_test_loss = 0.0
@@ -77,9 +76,9 @@ with torch.no_grad():
         masks = masks.to(device).long()
         masks_pred = model(images)
 
-        batch_loss = criterion(masks_pred, masks)
+        batch_loss = ce_criterion(masks_pred, masks)
         masks_pred = torch.argmax(masks_pred, dim=1)
-        batch_loss += dice_loss(masks_pred, masks, multiclass=False)
+        batch_loss += dice_criterion(masks_pred, masks, multiclass=False)
         total_test_loss += batch_loss
 
         image_list.append(images.cpu().numpy())

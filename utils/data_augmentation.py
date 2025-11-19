@@ -1,16 +1,18 @@
 import sys
 import os
-if sys.platform.startswith('win'):
-    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
-from dataset import TiffDataset
+import numpy as np
+import matplotlib.pyplot as plt
+import imageio.v2 as iio
+import tifffile as tiff
 import torch
 from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms.v2 as T
 
-import tifffile as tiff
-import numpy as np
-import matplotlib.pyplot as plt
+from dataset import TiffDataset
+
+
+if sys.platform.startswith('win'):
+    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 
 def show_img(img):
@@ -67,23 +69,22 @@ for ipath, lpath in dataset:
     img, lable = load_img(ipath, lpath)
     ilist.append(img)
     llist.append(lable)
-    for i in range(0,4):
+    for i in range(0, 4):
         new_img, new_lable = augment(img, lable)
         ilist.append(new_img)
         llist.append(new_lable)
 
-import imageio.v2 as iio
+
 def make_path(idx):
-    ipath = "data/image/"+ str(idx) + ".png"
-    lpath = "data/label/"+ str(idx) + ".png"
+    ipath = "data/image/" + str(idx) + ".png"
+    lpath = "data/label/" + str(idx) + ".png"
 
-    os.makedirs("data/label/",exist_ok=True)
-    os.makedirs("data/image/",exist_ok=True)
-    return ipath,lpath
+    os.makedirs("data/label/", exist_ok=True)
+    os.makedirs("data/image/", exist_ok=True)
+    return ipath, lpath
 
-for idx,(i,l) in enumerate(zip(ilist,llist)):
-    ipath,lpath = make_path(idx)
+
+for idx, (i, l) in enumerate(zip(ilist, llist)):
+    ipath, lpath = make_path(idx)
     iio.imwrite(ipath, i.squeeze())
     iio.imwrite(lpath, l.squeeze())
-
-
