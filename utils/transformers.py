@@ -14,6 +14,11 @@ class ToBinaryMask(v2.Transform):
 
     _transformed_types = (torch.Tensor, np.ndarray)
 
+    def _transform(
+        self, inpt: Union[torch.Tensor, np.ndarray], params: Dict[str, Any]
+    ) -> tv_tensors.Image:
+        return self.transform(inpt, params)
+
     def transform(
         self, inpt: Union[torch.Tensor, np.ndarray], params: Dict[str, Any]
     ) -> tv_tensors.Image:
@@ -33,6 +38,11 @@ class ToMicroMasks(v2.Transform):
 
     _transformed_types = (torch.Tensor, np.ndarray)
 
+    def _transform(
+        self, inpt: Union[torch.Tensor, np.ndarray], params: Dict[str, Any]
+    ) -> tv_tensors.Image:
+        return self.transform(inpt, params)
+
     def transform(
         self, inpt: Union[torch.Tensor, np.ndarray], params: Dict[str, Any]
     ) -> tv_tensors.Image:
@@ -45,9 +55,9 @@ class ToMicroMasks(v2.Transform):
         final_masks = np.zeros_like(img_stretched, dtype=np.uint8)
 
         threhold = [5, 250]
-        final_masks[(img_stretched > threhold[0]) & (img_stretched < threhold[1])] = 0 # 127 background
-        final_masks[img_stretched < threhold[0]] = 1 # 0 white area
-        final_masks[(img_stretched > threhold[1])] = 2 # 255 black area
+        final_masks[(img_stretched > threhold[0]) & (img_stretched < threhold[1])] = 0  # 127 background
+        final_masks[img_stretched < threhold[0]] = 1  # 0 white area
+        final_masks[(img_stretched > threhold[1])] = 2  # 255 black area
 
         return final_masks
 

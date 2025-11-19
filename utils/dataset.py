@@ -7,8 +7,6 @@ import imageio.v2 as iio
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import v2
-from transformers import ISBIImageTransformers, ISBILabelTransformers
-from transformers import MicroImageTransformers, MicroLabelTransformers
 
 
 class TiffDataset(Dataset):
@@ -115,40 +113,42 @@ class TiffDataset(Dataset):
         plt.show()
 
 
-if __name__ == '__main__':
-    if sys.platform.startswith('win'):
-        os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+# from utils.transformers import ISBIImageTransformers, ISBILabelTransformers
+# from transformers import MicroImageTransformers, MicroLabelTransformers
+# if __name__ == '__main__':
+    # if sys.platform.startswith('win'):
+    #     os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
     # dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
 
     #                         img_transforms=ISBIImageTransformers, label_transforms=ISBIlabelTransformers)
 
-    dataset = TiffDataset('data/image', 'data/label', img_transforms=MicroImageTransformers,
-                          label_transforms=MicroLabelTransformers)
+    # dataset = TiffDataset('data/image', 'data/label', img_transforms=MicroImageTransformers,
+    #                       label_transforms=MicroLabelTransformers)
 
-    indices = len(dataset)
-    train_size = len(dataset) - int(0.2*len(dataset))
-    test_size = len(dataset) - train_size
+    # indices = len(dataset)
+    # train_size = len(dataset) - int(0.2*len(dataset))
+    # test_size = len(dataset) - train_size
 
-    # Create random splits for train and test sets
-    train_set, test_set = torch.utils.data.random_split(
-        dataset,
-        [train_size, test_size]
-    )
+    # # Create random splits for train and test sets
+    # train_set, test_set = torch.utils.data.random_split(
+    #     dataset,
+    #     [train_size, test_size]
+    # )
 
-    print(f"Training set size: {len(train_set)}")
-    print(f"Test set size: {len(test_set)}")
+    # print(f"Training set size: {len(train_set)}")
+    # print(f"Test set size: {len(test_set)}")
 
-    batch_size = 4
-    train_loader = DataLoader(
-        train_set, batch_size=batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(
-        test_set, batch_size=batch_size, shuffle=False, drop_last=False)
-    images, labels = next(iter(train_loader))
+    # batch_size = 4
+    # train_loader = DataLoader(
+    #     train_set, batch_size=batch_size, shuffle=True, drop_last=True)
+    # test_loader = DataLoader(
+    #     test_set, batch_size=batch_size, shuffle=False, drop_last=False)
+    # images, labels = next(iter(train_loader))
 
-    # print(images.shape, labels.shape, old)
+    # # print(images.shape, labels.shape, old)
 
-    for i, j in zip(images, labels):
-        TiffDataset.show_img(i, streth=True, title="Orginal")
-        TiffDataset.show_img(j, streth=True, title="Masks")
-        break
+    # for i, j in zip(images, labels):
+    #     TiffDataset.show_img(i, streth=True, title="Orginal")
+    #     TiffDataset.show_img(j, streth=True, title="Masks")
+    #     break
