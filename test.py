@@ -1,5 +1,10 @@
+import sys
+import os
 from model import UNet
-from data import TiffDataset
+from dataset import TiffDataset
+from transformers import ISBIImageTransformers, ISBILabelTransformers
+from transformers import MicroImageTransformers, MicroLabelTransformers
+
 
 import torch
 import numpy as np
@@ -7,6 +12,10 @@ import pandas as pd
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset, Subset
 import matplotlib.pyplot as plt
+
+
+if sys.platform.startswith('win'):
+    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 
 device = "cpu"
@@ -17,24 +26,26 @@ elif torch.backends.mps.is_available():
 torch.device(device)
 print("Using device:", device)
 
+
 # Load Data
 dataset = TiffDataset(
-    'data_isbi/train/images', 'data_isbi/train/labels')
-
+    'data/image', 'data/label', MicroImageTransformers, MicroLabelTransformers)
 indices = len(dataset)
-
 train_size = len(dataset) - int(0.2*len(dataset))
 test_size = len(dataset) - train_size
+
 
 # Create random splits for train and test sets
 train_set, test_set = torch.utils.data.random_split(
     dataset,
     [train_size, test_size]
 )
+
 print(f"Training set size: {len(train_set)}")
 print(f"Test set size: {len(test_set)}")
 
-BATCH_SIZE = 1
+
+BATCH_SIZE = 4
 train_loader = DataLoader(
     train_set, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
 test_loader = DataLoader(test_set, batch_size=BATCH_SIZE,
@@ -42,7 +53,7 @@ test_loader = DataLoader(test_set, batch_size=BATCH_SIZE,
 
 
 # Test
-MODEL_PATH = "best_unet_model.pth"
+MODEL_PATH = "unet_classes2.pth"
 model = UNet(in_channels=1, out_channels=2).to(device)
 
 try:
@@ -51,45 +62,44 @@ except FileNotFoundError:
     exit()
 
 model.eval()
+
+from loss_function import dice_loss
 criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()
+dice_criterion = dice_loss
 
 total_test_loss = 0.0
-
+image_list = []
+masks_list = []
+preds_list = []
 with torch.no_grad():
     for images, masks in test_loader:
         images = images.to(device)
-        masks = masks.to(device)
-
+        masks = masks.to(device).long()
         masks_pred = model(images)
-        loss = criterion(masks_pred, masks)
-        total_test_loss += loss.item()
+
+        batch_loss = criterion(masks_pred, masks)
+        masks_pred = torch.argmax(masks_pred, dim=1)
+        batch_loss += dice_loss(masks_pred, masks, multiclass=False)
+        total_test_loss += batch_loss
+
+        image_list.append(images.cpu().numpy())
+        masks_list.append(masks.cpu().numpy())
+        preds_list.append(masks_pred.cpu().numpy())
 
 avg_test_loss = total_test_loss / len(test_loader)
 print(f" (Test Loss): {avg_test_loss:.4f}")
 
-try:
-    images, masks = next(iter(test_loader))
-    images = images.to(device)
+page = 4
+for i in range(0, page):
+    images_np = image_list[i]
+    masks_np = masks_list[i]
+    preds_np = preds_list[i]
 
-    with torch.no_grad():
-        masks_pred = model(images)
-
-    preds = torch.sigmoid(masks_pred)
-    preds = (preds > 0.5).float()
-
-    images_np = images.cpu().numpy()
-    masks_np = masks.cpu().numpy()
-    preds_np = preds.cpu().numpy()
-
-    num_to_show = min(BATCH_SIZE, 4)
-    fig, axes = plt.subplots(num_to_show, 3, figsize=(15, num_to_show * 5))
-
-    if num_to_show == 1:
+    fig, axes = plt.subplots(BATCH_SIZE, 3, figsize=(15, BATCH_SIZE * 5))
+    if BATCH_SIZE == 1:
         axes = [axes]
 
-    print(images_np.shape, masks_np.shape, preds_np.shape)
-
-    for i in range(num_to_show):
+    for i in range(BATCH_SIZE):
         axes[i, 0].imshow(np.squeeze(images_np[i]), cmap='gray')
         axes[i, 0].set_title("(Original Image)")
         axes[i, 0].axis('off')
@@ -98,14 +108,11 @@ try:
         axes[i, 1].set_title("(True Mask)")
         axes[i, 1].axis('off')
 
-        final_prediction = np.argmax(preds_np[i], axis=0)
-        axes[i, 2].imshow(np.squeeze(final_prediction), cmap='gray')
+        # final_prediction = np.argmax(preds_np[i], axis=0)
+        print(np.unique(preds_np[i]),preds_np[i].shape)
+
+        axes[i, 2].imshow(preds_np[i], cmap='gray')
         axes[i, 2].set_title("(Predicted Mask)")
         axes[i, 2].axis('off')
-
     plt.tight_layout()
     plt.show()
-
-
-except StopIteration:
-    print(f"Error: StopIteration")

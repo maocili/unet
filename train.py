@@ -1,11 +1,16 @@
-from model import UNet
-from dataset import TiffDataset
-
-import torch
-import torch.nn as nn
 import numpy as np
 import pandas as pd
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, Subset
+
+from model import UNet
+from dataset import TiffDataset
+from loss_function import dice_loss
+from transformers import ISBIImageTransformers, ISBILabelTransformers
+from transformers import MicroImageTransformers, MicroLabelTransformers
+
 
 device = "cpu"
 if torch.cuda.is_available():
@@ -16,7 +21,10 @@ torch.device(device)
 print("Using device:", device)
 
 # Load Data
-dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels')
+# dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
+#                       img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
+dataset = TiffDataset('data/image', 'data/label',
+                      img_transforms=MicroImageTransformers, label_transforms=MicroLabelTransformers)
 
 indices = len(dataset)
 train_size = indices - int(0.2*indices)
@@ -41,24 +49,38 @@ test_loader = DataLoader(
 num_epochs = 10
 LEARNING_RATE = 1e-3
 
-model = UNet(in_channels=1, out_channels=2).to(device=device)
+def kaiming_init_weights(m):
+    if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+        nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+    elif isinstance(m, nn.BatchNorm2d):
+        nn.init.constant_(m.weight, 1)
+        nn.init.constant_(m.bias, 0)
+
+model = UNet(in_channels=1, out_channels=3).to(device=device)
+model.apply(kaiming_init_weights)
+
 criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()
-optimizer = torch.optim.SGD(
-    model.parameters(), lr=LEARNING_RATE, momentum=0.99)
+dice_criterion = dice_loss
+
+# optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.99)
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 best_val_loss = float('inf')
-
 for epoch in range(num_epochs):
     model.train()
     total_train_loss = 0.0
 
     for images, masks in train_loader:
         images = images.to(device=device)
-        masks = masks.to(device=device)
+        masks = masks.to(device=device).long()
 
         masks_pred = model(images)
 
         batch_loss = criterion(masks_pred, masks)
+        masks_pred = torch.argmax(masks_pred, dim=1)
+        batch_loss += dice_loss(masks_pred, masks, multiclass=False)
 
         optimizer.zero_grad()
         batch_loss.backward()
@@ -73,10 +95,14 @@ for epoch in range(num_epochs):
     with torch.no_grad():
         for images, masks in test_loader:
             images = images.to(device)
-            masks = masks.to(device)
+            masks = masks.to(device).long()
 
             masks_pred = model(images)
+
             loss = criterion(masks_pred, masks)
+            masks_pred = torch.argmax(masks_pred, dim=1)
+            loss += dice_loss(masks_pred, masks, multiclass=False)
+            print(loss)
 
             val_loss += loss.item()
 

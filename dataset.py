@@ -1,52 +1,27 @@
 import os
 import re
+import sys
 import torch
 import numpy as np
-import tifffile as tiff
+import imageio.v2 as iio
 import matplotlib.pyplot as plt
-from torch.utils.data import Dataset, DataLoader, Subset
-
-"""
-# dataset = TiffSegmentationDataset('data_isbi/train/images','data_isbi/train/labels')
-
-# indices = len(dataset)
-
-# train_size = len(dataset) - int(0.2*len(dataset))
-# test_size = len(dataset) - train_size
-
-# # Create random splits for train and test sets
-# train_set, test_set = torch.utils.data.random_split(
-#     dataset, 
-#     [train_size, test_size]
-# )
-# print(f"Training set size: {len(train_set)}")
-# print(f"Test set size: {len(test_set)}")
-
-# batch_size = 4
-
-# train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True)
-# test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, drop_last=False)
-
-# images,mask = next(iter(train_loader))
-# print(images.shape,mask.shape)
-
-# print(len(images))
-# TiffSegmentationDataset.show_img(images[0],streth=True,title="a")
-# TiffSegmentationDataset.show_img(mask[0],streth=True,title="a")
-
-"""
+from torch.utils.data import Dataset, DataLoader
+from torchvision.transforms import v2
+from transformers import ISBIImageTransformers, ISBILabelTransformers
+from transformers import MicroImageTransformers, MicroLabelTransformers
 
 
 class TiffDataset(Dataset):
-    def __init__(self, image_path: str, masks_path: str, transform=None):
+    def __init__(self, image_path: str, masks_path: str, img_transforms=None, label_transforms=None):
         super().__init__()
 
-        self.file_supports = ("tif", "tiff")
+        self.file_supports = ("tif", "tiff", "png")
         self.image_path_dir = image_path
         self.mask_path_dir = masks_path
         self.file_pairs = self.__get_file_pairs()
-        
-        self.transform = transform
+
+        self.img_transforms = img_transforms
+        self.label_transforms = label_transforms
 
     def __get_numeric_key(self, filename):
         for t in self.file_supports:
@@ -56,9 +31,11 @@ class TiffDataset(Dataset):
                 return int(matches[-1])
         return None
 
+    def get_list(self):
+        return self.__get_file_pairs()
+
     def __get_file_pairs(self):
         pairs_map = {}
-
         try:
             ilist = os.listdir(self.image_path_dir)
         except FileNotFoundError:
@@ -74,6 +51,7 @@ class TiffDataset(Dataset):
 
         try:
             mlist = os.listdir(self.mask_path_dir)
+
         except FileNotFoundError:
             print(f"Error: file not found {self.mask_path_dir}")
             return []
@@ -82,6 +60,7 @@ class TiffDataset(Dataset):
         for f in mlist:
             if not f.endswith(self.file_supports):
                 continue
+
             idx = self.__get_numeric_key(f)
             if idx in pairs_map:
                 pairs_map[idx].append(os.path.join(self.mask_path_dir, f))
@@ -94,28 +73,18 @@ class TiffDataset(Dataset):
         return len(self.file_pairs)
 
     def __getitem__(self, idx):
-        image_path, mask_path = self.file_pairs[idx]
-        image = tiff.imread(image_path)  # (H, W)
-        mask = tiff.imread(mask_path)
-        if image.ndim == 2:
-            image = np.expand_dims(image, axis=0)
+        image_path, label_path = self.file_pairs[idx]
+        image = iio.imread(image_path)  # (H, W)
+        label = iio.imread(label_path)  # (H, W)
 
-        if mask.ndim == 2:
-            mask = mask.reshape(-1, 1)
-            # mask = np.expand_dims(mask, axis=0)
+        if self.img_transforms:
+            image = self.img_transforms(image)
 
-        mask = mask >= 255 / 2
-        mask = mask.astype(np.uint8)
-        mask = mask.reshape(512, 512)
+        if self.label_transforms:
 
-        image_tensor = torch.from_numpy(image).float()
-        mask_tensor = torch.from_numpy(mask).long()
+            label = self.label_transforms(label)
 
-        sample = {'image': image_tensor, 'masks': mask_tensor}
-        if self.transform:
-            return self.transform(sample)
-        
-        return image_tensor, mask_tensor
+        return (image, label)
 
     @staticmethod
     def show_img(
@@ -138,21 +107,48 @@ class TiffDataset(Dataset):
         print("Min intensity:", np.min(img_data))
         print("Max intensity:", np.max(img_data))
 
-        if streth:
-            p_min = np.min(img_data)
-            p_max = np.max(img_data)
-            # 避免除以零
-            if p_max - p_min > 1e-5:
-                img_stretched = (img_data - p_min) / (p_max - p_min) * 255
-            else:
-                img_stretched = img_data * 0  # 如果所有值都一样，则为黑色
-
-            img_stretched = img_stretched.astype(np.uint8)
-            img_data = img_stretched
-
         # Show image
         plt.figure(figsize=(8, 8))
         plt.imshow(img_data, cmap="gray")
         plt.title(title)
         plt.axis("off")
         plt.show()
+
+
+if __name__ == '__main__':
+    if sys.platform.startswith('win'):
+        os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+    # dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
+
+    #                         img_transforms=ISBIImageTransformers, label_transforms=ISBIlabelTransformers)
+
+    dataset = TiffDataset('data/image', 'data/label', img_transforms=MicroImageTransformers,
+                          label_transforms=MicroLabelTransformers)
+
+    indices = len(dataset)
+    train_size = len(dataset) - int(0.2*len(dataset))
+    test_size = len(dataset) - train_size
+
+    # Create random splits for train and test sets
+    train_set, test_set = torch.utils.data.random_split(
+        dataset,
+        [train_size, test_size]
+    )
+
+    print(f"Training set size: {len(train_set)}")
+    print(f"Test set size: {len(test_set)}")
+
+    batch_size = 4
+    train_loader = DataLoader(
+        train_set, batch_size=batch_size, shuffle=True, drop_last=True)
+    test_loader = DataLoader(
+        test_set, batch_size=batch_size, shuffle=False, drop_last=False)
+    images, labels = next(iter(train_loader))
+
+    # print(images.shape, labels.shape, old)
+
+    for i, j in zip(images, labels):
+        TiffDataset.show_img(i, streth=True, title="Orginal")
+        TiffDataset.show_img(j, streth=True, title="Masks")
+        break
