@@ -1,13 +1,16 @@
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import DataLoader, Dataset, Subset
+
 from model import UNet
 from dataset import TiffDataset
+from loss_function import dice_loss
 from transformers import ISBIImageTransformers, ISBILabelTransformers
 from transformers import MicroImageTransformers, MicroLabelTransformers
 
-import torch
-import torch.nn as nn
-import numpy as np
-import pandas as pd
-from torch.utils.data import DataLoader, Dataset, Subset
 
 device = "cpu"
 if torch.cuda.is_available():
@@ -43,26 +46,30 @@ test_loader = DataLoader(
     test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
 
-num_epochs = 10
+num_epochs = 20
 LEARNING_RATE = 1e-3
 
-model = UNet(in_channels=1, out_channels=3).to(device=device)
+model = UNet(in_channels=1, out_channels=2).to(device=device)
+
 criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()
+dice_criterion = dice_loss
+
 optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.99)
 
 best_val_loss = float('inf')
-
 for epoch in range(num_epochs):
     model.train()
     total_train_loss = 0.0
 
     for images, masks in train_loader:
         images = images.to(device=device)
-        masks = masks.to(device=device)
+        masks = masks.to(device=device).long()
 
         masks_pred = model(images)
 
-        batch_loss = criterion(masks_pred, masks.long())
+        batch_loss = criterion(masks_pred, masks)
+        masks_pred = torch.argmax(masks_pred, dim=1)
+        batch_loss += dice_loss(masks_pred, masks, multiclass=False)
 
         optimizer.zero_grad()
         batch_loss.backward()
@@ -77,10 +84,14 @@ for epoch in range(num_epochs):
     with torch.no_grad():
         for images, masks in test_loader:
             images = images.to(device)
-            masks = masks.to(device)
+            masks = masks.to(device).long()
 
             masks_pred = model(images)
-            loss = criterion(masks_pred, masks.long())
+
+            loss = criterion(masks_pred, masks)
+            masks_pred = torch.argmax(masks_pred, dim=1)
+            loss += dice_loss(masks_pred, masks, multiclass=False)
+            print(loss)
 
             val_loss += loss.item()
 
