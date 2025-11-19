@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-
+# Copy from https://github.com/milesial/Pytorch-UNet/blob/master/utils/dice_score.py
 def dice_coeff(input: Tensor, target: Tensor, reduce_batch_first: bool = False, epsilon: float = 1e-6):
     # Average of Dice coefficient for all batches, or for a single mask
     assert input.size() == target.size()
