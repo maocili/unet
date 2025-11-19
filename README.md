@@ -1,9 +1,19 @@
 # unet
 
-## TODO
-[ ] impl of data pre-processing
-[ ] Complete the code for data augmentation to fit the current project's dataset, referencing data_augmentation_demo.ipynb.
+## Project Structure
 
+```
+unet-reconstruction/
+├── model.py                  # Defines the U-Net architecture (contracting & expansive paths)
+├── train.py                  # Main script for training the model and saving weights
+├── predict.py                # Script to load the model and visualize predictions
+└── utils/
+    ├── dataset.py            # Handles loading image/mask pairs (TiffDataset class)
+    ├── loss_function.py      # Implements Dice Loss and coefficients
+    ├── transformers.py       # Data preprocessing and normalization logic
+    ├── data_augmentation.py  # Tools for augmenting training data
+    └── weights.py            # Weight initialization function (Kaiming init) 
+```
 
 Thanks to:
 
