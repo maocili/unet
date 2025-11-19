@@ -46,15 +46,26 @@ test_loader = DataLoader(
     test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
 
-num_epochs = 20
+num_epochs = 10
 LEARNING_RATE = 1e-3
 
-model = UNet(in_channels=1, out_channels=2).to(device=device)
+def kaiming_init_weights(m):
+    if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+        nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+    elif isinstance(m, nn.BatchNorm2d):
+        nn.init.constant_(m.weight, 1)
+        nn.init.constant_(m.bias, 0)
+
+model = UNet(in_channels=1, out_channels=3).to(device=device)
+model.apply(kaiming_init_weights)
 
 criterion = nn.CrossEntropyLoss() if model.out_channels > 1 else nn.BCEWithLogitsLoss()
 dice_criterion = dice_loss
 
-optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.99)
+# optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.99)
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 best_val_loss = float('inf')
 for epoch in range(num_epochs):

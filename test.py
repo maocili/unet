@@ -53,7 +53,7 @@ test_loader = DataLoader(test_set, batch_size=BATCH_SIZE,
 
 
 # Test
-MODEL_PATH = "best_unet_model.pth"
+MODEL_PATH = "unet_classes2.pth"
 model = UNet(in_channels=1, out_channels=2).to(device)
 
 try:
@@ -89,7 +89,7 @@ with torch.no_grad():
 avg_test_loss = total_test_loss / len(test_loader)
 print(f" (Test Loss): {avg_test_loss:.4f}")
 
-page = 1
+page = 4
 for i in range(0, page):
     images_np = image_list[i]
     masks_np = masks_list[i]

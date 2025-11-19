@@ -47,7 +47,7 @@ class ToMicroMasks(v2.Transform):
         threhold = [5, 250]
         final_masks[(img_stretched > threhold[0]) & (img_stretched < threhold[1])] = 0 # 127 background
         final_masks[img_stretched < threhold[0]] = 1 # 0 white area
-        final_masks[(img_stretched > threhold[1])] = 1 # 255 black area
+        final_masks[(img_stretched > threhold[1])] = 2 # 255 black area
 
         return final_masks
 

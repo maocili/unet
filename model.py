@@ -10,9 +10,11 @@ class DoubleConv(nn.Module):
         self.net = nn.Sequential(
             nn.Conv2d(in_channels, out_channels,
                       kernel_size=kernel_size, padding=1),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU(),
             nn.Conv2d(out_channels, out_channels,
                       kernel_size=kernel_size, padding=1),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU(),
         )
 
