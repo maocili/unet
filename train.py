@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, Subset
+from tqdm import tqdm
 
 from model import UNet
 from utils.dataset import TiffDataset
@@ -24,7 +25,7 @@ print("Using device:", device)
 # from utils.transformers import ISBIImageTransformers, ISBILabelTransformers
 # dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
 #                       img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
-dataset = TiffDataset('data/image', 'data/label',
+dataset = TiffDataset('data/train/image', 'data/train/label',
                       img_transforms=MicroImageTransformers, label_transforms=MicroLabelTransformers)
 
 indices = len(dataset)
@@ -50,7 +51,7 @@ test_loader = DataLoader(
 num_epochs = 10
 LEARNING_RATE = 1e-3
 
-model = UNet(in_channels=1, out_channels=3).to(device=device)
+model = UNet(in_channels=1, out_channels=2).to(device=device)
 model.apply(kaiming_init_weights)
 
 criterion = combo_loss_for_micro
@@ -61,14 +62,15 @@ best_val_loss = float('inf')
 for epoch in range(num_epochs):
     model.train()
     total_train_loss = 0.0
-
-    for images, masks in train_loader:
+    
+    loop = tqdm(train_loader, desc=f'Epoch {epoch+1}')
+    for images, masks in loop:
         images = images.to(device=device)
         masks = masks.to(device=device).long()
 
         masks_pred = model(images)
 
-        batch_loss = combo_loss_for_micro(masks_pred,masks)
+        batch_loss = criterion(masks_pred,masks)
 
         optimizer.zero_grad()
         batch_loss.backward()
@@ -87,9 +89,7 @@ for epoch in range(num_epochs):
 
             masks_pred = model(images)
 
-            loss = ce_criterion(masks_pred, masks)
-            masks_pred = torch.argmax(masks_pred, dim=1)
-            loss += dice_loss(masks_pred, masks, multiclass=False)
+            loss = criterion(masks_pred, masks)
             print(loss)
 
             val_loss += loss.item()

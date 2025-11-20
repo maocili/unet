@@ -28,7 +28,7 @@ print("Using device:", device)
 
 # Load Data
 dataset = TiffDataset(
-    'data/image', 'data/label', MicroImageTransformers, MicroLabelTransformers)
+    'data/test/image', 'data/test/label', MicroImageTransformers, MicroLabelTransformers)
 indices = len(dataset)
 train_size = len(dataset) - int(0.2*len(dataset))
 test_size = len(dataset) - train_size

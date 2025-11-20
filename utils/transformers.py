@@ -82,5 +82,5 @@ MicroImageTransformers = v2.Compose([
 ])
 
 MicroLabelTransformers = v2.Compose([
-    ToMicroMasks(),
+    ToBinaryMask(),
 ])
