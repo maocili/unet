@@ -10,7 +10,7 @@ from torchvision.transforms import v2
 
 
 class TiffDataset(Dataset):
-    def __init__(self, image_path: str, masks_path: str, img_transforms=None, label_transforms=None):
+    def __init__(self, image_path: str, masks_path: str, img_transforms=None, label_transforms=None, transforms=None):
         super().__init__()
 
         self.file_supports = ("tif", "tiff", "png")
@@ -20,6 +20,7 @@ class TiffDataset(Dataset):
 
         self.img_transforms = img_transforms
         self.label_transforms = label_transforms
+        self.transforms = transforms
 
     def __get_numeric_key(self, filename):
         for t in self.file_supports:
@@ -75,12 +76,13 @@ class TiffDataset(Dataset):
         image = iio.imread(image_path)  # (H, W)
         label = iio.imread(label_path)  # (H, W)
 
-        if self.img_transforms:
-            image = self.img_transforms(image)
-
-        if self.label_transforms:
-
-            label = self.label_transforms(label)
+        if self.transforms:
+            image, label = self.transforms(image, label)
+        else:
+            if self.img_transforms:
+                image = self.img_transforms(image)
+            if self.label_transforms:
+                label = self.label_transforms(label)
 
         return (image, label)
 

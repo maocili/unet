@@ -2,7 +2,7 @@ import sys
 import os
 from model import UNet
 from utils.dataset import TiffDataset
-from utils.transformers import MicroImageTransformers, MicroLabelTransformers
+from utils.transformers import MicroImageTransformers, MicroLabelTransformers, MicroTransformers
 from utils.loss_function.combo import combo_loss_for_micro
 from utils.loss_function.iou import iou_coeff
 
@@ -29,7 +29,7 @@ print("Using device:", device)
 
 # Load Data
 dataset = TiffDataset(
-    'data/test/image', 'data/test/label', MicroImageTransformers, MicroLabelTransformers)
+    'data/test/image', 'data/test/label', transforms=MicroTransformers(train=False))
 indices = len(dataset)
 
 print(f"Test set size: {len(dataset)}")
@@ -96,6 +96,7 @@ for i in range(0, page):
         axes[i, 1].axis('off')
 
         iou = iou_coeff(masks_np[i], preds_np[i])
+        print(f"IoU={iou :.4f}")
         axes[i, 2].imshow(preds_np[i], cmap='gray')
         axes[i, 2].set_title(f"(Predicted Mask) iou = {iou :.4f}")
         axes[i, 2].axis('off')

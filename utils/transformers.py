@@ -78,9 +78,40 @@ MicroImageTransformers = v2.Compose([
     v2.ToImage(),
     v2.ToDtype(torch.float32, scale=True),
     v2.Normalize(mean=[0.15], std=[0.35]),
-    v2.GaussianBlur(kernel_size=(5, 5), sigma=(2.0)),
+    v2.GaussianBlur(kernel_size=(3, 3), sigma=(2.0)),
 ])
 
 MicroLabelTransformers = v2.Compose([
     ToBinaryMask(),
 ])
+
+
+class MicroTransformers:
+    def __init__(self, train=True):
+        self.to_img = v2.ToImage()
+        self.to_mask = ToBinaryMask() 
+        
+        if train:
+            self.geometry_aug = v2.Compose([
+                v2.RandomHorizontalFlip(p=0.5),
+                v2.RandomVerticalFlip(p=0.5),
+            ])
+        else:
+            self.geometry_aug = None
+
+        self.pixel_aug = v2.Compose([
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.15], std=[0.35]),
+            v2.GaussianBlur(kernel_size=(3, 3), sigma=(2.0)),
+        ])
+
+    def __call__(self, img, label):
+        img = self.to_img(img)
+        label = self.to_mask(label) 
+
+        if self.geometry_aug:
+            img, label = self.geometry_aug(img, label)
+
+        img = self.pixel_aug(img)
+
+        return img, label
