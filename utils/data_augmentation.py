@@ -15,6 +15,15 @@ if sys.platform.startswith('win'):
     os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 
+def make_path(idx, target):
+    ipath = "data/" + target + "/image/" + str(idx) + ".png"
+    lpath = "data/" + target + "/label/" + str(idx) + ".png"
+
+    os.makedirs("data/" + target + "/label/", exist_ok=True)
+    os.makedirs("data/" + target + "/image/" , exist_ok=True)
+    return ipath, lpath
+
+
 def show_img(img):
     plt.figure(figsize=(8, 8))
     plt.imshow(img, cmap='gray')
@@ -52,20 +61,40 @@ transform_pipeline = T.Compose([
     T.ToDtype(torch.uint8, scale=True)
 ])
 
+conv2img_pipline = T.Compose([
+    T.ToImage(),
+    T.ToDtype(torch.uint8, scale=True)
+])
+
 
 def augment(img, lable):
     img, lable = transform_pipeline(img, lable)
     return img.squeeze().numpy(), lable.squeeze().numpy()
 
 
+def conv2img(img, label):
+    img, label = conv2img_pipline(img, label)
+    return img.squeeze().numpy(), label.squeeze().numpy()
+
+
 dataset = TiffDataset('data/Original Images', 'data/Original Masks')
 dataset = dataset.get_list()
 
+indices = len(dataset)
+train_size = indices - int(0.2*indices)
+test_size = indices - train_size
 
+# Create random splits for train and test sets
+train_set, test_set = torch.utils.data.random_split(
+    dataset,
+    [train_size, test_size]
+)
+
+# Train Dataset
 ilist = []
 llist = []
-# for img,lable in dataset:
-for ipath, lpath in dataset:
+for pairs in train_set:
+    ipath, lpath = pairs[0],pairs[1]
     img, lable = load_img(ipath, lpath)
     ilist.append(img)
     llist.append(lable)
@@ -75,16 +104,24 @@ for ipath, lpath in dataset:
         llist.append(new_lable)
 
 
-def make_path(idx):
-    ipath = "data/image/" + str(idx) + ".png"
-    lpath = "data/label/" + str(idx) + ".png"
+for idx, (i, l) in enumerate(zip(ilist, llist)):
+    ipath, lpath = make_path(idx, "train")
+    iio.imwrite(ipath, i.squeeze())
+    iio.imwrite(lpath, l.squeeze())
 
-    os.makedirs("data/label/", exist_ok=True)
-    os.makedirs("data/image/", exist_ok=True)
-    return ipath, lpath
+# Test Dataset
+ilist = []
+llist = []
+for pairs in test_set:
+    ipath, lpath = pairs[0],pairs[1]
+
+    img, lable = load_img(ipath, lpath)
+    new_img, new_lable = conv2img(img, lable)
+    ilist.append(new_img)
+    llist.append(new_lable)
 
 
 for idx, (i, l) in enumerate(zip(ilist, llist)):
-    ipath, lpath = make_path(idx)
+    ipath, lpath = make_path(idx, "test")
     iio.imwrite(ipath, i.squeeze())
     iio.imwrite(lpath, l.squeeze())
