@@ -3,7 +3,7 @@ import os
 from model import UNet
 from utils.dataset import TiffDataset
 from utils.transformers import MicroImageTransformers, MicroLabelTransformers
-from utils.loss_function import dice_loss
+from utils.loss_function.combo import combo_loss_for_micro
 
 import torch
 import numpy as np
@@ -62,9 +62,7 @@ except FileNotFoundError:
 
 model.eval()
 
-ce_weight = torch.Tensor([0.5, 1, 0.5])
-ce_criterion = nn.CrossEntropyLoss(weight=ce_weight).to(device=device)
-dice_criterion = dice_loss
+criterion = combo_loss_for_micro
 
 total_test_loss = 0.0
 image_list = []
@@ -76,9 +74,7 @@ with torch.no_grad():
         masks = masks.to(device).long()
         masks_pred = model(images)
 
-        batch_loss = ce_criterion(masks_pred, masks)
-        masks_pred = torch.argmax(masks_pred, dim=1)
-        batch_loss += dice_criterion(masks_pred, masks, multiclass=False)
+        batch_loss = criterion(masks_pred, masks)
         total_test_loss += batch_loss
 
         image_list.append(images.cpu().numpy())
