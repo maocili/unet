@@ -26,17 +26,18 @@ print("Using device:", device)
 # from utils.transformers import ISBIImageTransformers, ISBILabelTransformers
 # dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
 #                       img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
-dataset = TiffDataset('data/train/image', 'data/train/label',  transforms=MicroTransformers(train=True))
+train_set = TiffDataset('data/train/image', 'data/train/label',  transforms=MicroTransformers(train=True))
+test_set = TiffDataset('data/test/image', 'data/test/label',  transforms=MicroTransformers(train=True))
 
-indices = len(dataset)
-train_size = indices - int(0.2*indices)
-test_size = indices - train_size
-
+# indices = len(dataset)
+# train_size = indices - int(0.2*indices)
+# test_size = indices - train_size
 # Create random splits for train and test sets
-train_set, test_set = torch.utils.data.random_split(
-    dataset,
-    [train_size, test_size]
-)
+# train_set, test_set = torch.utils.data.random_split(
+#     dataset,
+#     [train_size, test_size]
+# )
+
 print(f"Training set size: {len(train_set)}")
 print(f"Test set size: {len(test_set)}")
 
@@ -48,15 +49,15 @@ test_loader = DataLoader(
     test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
 
-num_epochs = 10
-LEARNING_RATE = 1e-3
+num_epochs = 20
+LEARNING_RATE = 1e-4
 
 model = UNet(in_channels=1, out_channels=2).to(device=device)
 model.apply(kaiming_init_weights)
 
 criterion = combo_loss_for_micro
 
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-5)
 
 best_val_loss = float('inf')
 best_iou = 0.0
@@ -94,15 +95,16 @@ for epoch in range(num_epochs):
 
             loss = criterion(masks_pred, masks)
 
-            iou += iou_coeff(masks_pred[:, 1, :, :], masks)
+            masks_pred = torch.softmax(masks_pred, dim=1)[:, 1, :, :]
+            iou += iou_coeff(masks_pred, masks)
             val_loss += loss.item()
 
     avg_val_loss = val_loss / float(len(test_set))
     avg_iou = iou / float(len(test_set))
 
-    if epoch % (num_epochs/10) == 0:
+    if epoch % (num_epochs/num_epochs) == 0:
         print(
-            f"Epoch [{epoch}] | training loss : {avg_train_loss:.4f} | val loss: {avg_val_loss:.4f} | IoU={avg_iou :.4f} ")
+            f"Epoch [{epoch + 1}] | training loss : {avg_train_loss:.4f} | val loss: {avg_val_loss:.4f} | IoU={avg_iou :.4f} ")
 
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss
@@ -113,4 +115,8 @@ for epoch in range(num_epochs):
         best_iou = avg_iou
         torch.save(model.state_dict(), 'best_iou_unet_model.pth')
         print("Saved best_IoU_unet_model")
+
+    if epoch+1 == num_epochs:
+        torch.save(model.state_dict(), 'least_unet_model.pth')
+        print("Saved least_unet_model.pth")
 

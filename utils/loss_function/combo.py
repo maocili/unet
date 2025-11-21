@@ -25,14 +25,24 @@ def combo_focal_dice(inpt: torch.Tensor, target: torch.Tensor):
     return loss
 
 
+# 0.25 2.0
+# .5 .5
 def combo_tversky_loss(inpt: torch.Tensor, target: torch.Tensor):
-    focal_loss = smp.losses.FocalLoss(mode="multiclass", alpha=0.25)
-    tversky_loss = smp.losses.TverskyLoss(mode="multiclass", alpha=0.6, beta=0.4)
+    focal_loss = smp.losses.FocalLoss(mode="multiclass", alpha=0.25,gamma=2.0)
+    tversky_loss = smp.losses.TverskyLoss(mode="multiclass", alpha=0.5, beta=0.5)
 
     loss = focal_loss(inpt, target)
-    loss += tversky_loss(inpt, target)
+
+    masks_pred = torch.softmax(inpt, dim=1)[:,1,:,:]
+    loss += 1-tversky_loss.compute_score(masks_pred, target)
     return loss
 
+def combo_focal_logdice(inpt: torch.Tensor, target: torch.Tensor):
+    focal_loss = smp.losses.FocalLoss(mode="multiclass", alpha=0.25)
+    dice_val = dice_loss(torch.softmax(inpt, dim=1)[:, 1, :, :], target, multiclass=False)
+    loss =  torch.log(torch.cosh(dice_val))
+    loss += focal_loss(inpt,target)
+    return loss
 
 def combo_loss_for_micro(inpt: torch.Tensor, target: torch.Tensor):
-    return combo_focal_dice(inpt=inpt, target=target)
+    return combo_tversky_loss(inpt=inpt, target=target)

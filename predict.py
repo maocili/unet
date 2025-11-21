@@ -41,8 +41,10 @@ loader = DataLoader(dataset, batch_size=BATCH_SIZE,
 
 
 # Test
-MODEL_PATH = "best_unet_model.pth"
+MODEL_PATH = "best_iou_unet_model.pth"
 model = UNet(in_channels=1, out_channels=2).to(device)
+total_params = sum(p.numel() for p in model.parameters())
+print(f"Total Parameters:", {total_params})
 
 try:
     model.load_state_dict(torch.load(MODEL_PATH, map_location=device, weights_only=True))

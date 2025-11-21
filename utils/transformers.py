@@ -78,7 +78,6 @@ MicroImageTransformers = v2.Compose([
     v2.ToImage(),
     v2.ToDtype(torch.float32, scale=True),
     v2.Normalize(mean=[0.15], std=[0.35]),
-    v2.GaussianBlur(kernel_size=(3, 3), sigma=(2.0)),
 ])
 
 MicroLabelTransformers = v2.Compose([
@@ -101,8 +100,7 @@ class MicroTransformers:
 
         self.pixel_aug = v2.Compose([
             v2.ToDtype(torch.float32, scale=True),
-            v2.Normalize(mean=[0.15], std=[0.35]),
-            v2.GaussianBlur(kernel_size=(3, 3), sigma=(2.0)),
+            v2.Normalize(mean=[0.2], std=[0.2]),
         ])
 
     def __call__(self, img, label):
