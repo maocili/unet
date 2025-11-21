@@ -3,16 +3,20 @@
 ## Project Structure
 
 ```
-unet-reconstruction/
+unet/
 ├── model.py                  # Defines the U-Net architecture (contracting & expansive paths)
 ├── train.py                  # Main script for training the model and saving weights
 ├── predict.py                # Script to load the model and visualize predictions
+├── script/
+│   └── data_process.py       # Data preprocessing and offline augmentation script (Micro-CT image processing pipeline)
 └── utils/
     ├── dataset.py            # Handles loading image/mask pairs (TiffDataset class)
-    ├── loss_function.py      # Implements Dice Loss and coefficients
-    ├── transformers.py       # Data preprocessing and normalization logic
-    ├── data_augmentation.py  # Tools for augmenting training data
-    └── weights.py            # Weight initialization function (Kaiming init) 
+    ├── transformers.py       # Data preprocessing, normalization, and online augmentation logic (MicroTransformers class)
+    ├── weights.py            # Weight initialization function (Kaiming init)
+    └── loss_function/        # Collection of loss function implementations
+        ├── combo.py          # Combo loss function implementation (e.g., Combo Loss, Focal+Dice)
+        ├── dice.py           # Dice coefficient and Dice Loss implementation
+        └── iou.py            # IoU coefficient calculation and Loss implementation
 ```
 
 Thanks to:
