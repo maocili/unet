@@ -10,17 +10,19 @@ from torchvision.transforms import v2
 
 
 class TiffDataset(Dataset):
-    def __init__(self, image_path: str, masks_path: str, img_transforms=None, label_transforms=None, transforms=None):
+    def __init__(self, image_path: str, masks_path: str, img_transforms=None, label_transforms=None, transforms=None, single_dir=False):
         super().__init__()
 
         self.file_supports = ("tif", "tiff", "png")
         self.image_path_dir = image_path
         self.mask_path_dir = masks_path
-        self.file_pairs = self.__get_file_pairs()
+        self.single_dir = single_dir  # True, read image path only
 
         self.img_transforms = img_transforms
         self.label_transforms = label_transforms
         self.transforms = transforms
+
+        self.file_pairs = self.__get_file_pairs()
 
     def __get_numeric_key(self, filename):
         for t in self.file_supports:
@@ -46,35 +48,58 @@ class TiffDataset(Dataset):
                 continue
             idx = self.__get_numeric_key(f)
             if idx is not None:
-                pairs_map[idx] = [os.path.join(self.image_path_dir, f)]
+                pairs_map[idx] = os.path.join(self.image_path_dir, f)
 
-        try:
-            mlist = os.listdir(self.mask_path_dir)
+        if not self.single_dir:
+            try:
+                mlist = os.listdir(self.mask_path_dir)
+            except FileNotFoundError:
+                print(f"Error: file not found {self.mask_path_dir}")
+                return []
 
-        except FileNotFoundError:
-            print(f"Error: file not found {self.mask_path_dir}")
-            return []
+            for f in mlist:
+                if not f.endswith(self.file_supports):
+                    continue
 
-        final_pairs_list = []
-        for f in mlist:
-            if not f.endswith(self.file_supports):
-                continue
+                idx = self.__get_numeric_key(f)
+                if idx in pairs_map:
+                    img_path = pairs_map[idx] 
+                    pairs_map[idx] = (img_path,os.path.join(self.mask_path_dir, f))
 
-            idx = self.__get_numeric_key(f)
-            if idx in pairs_map:
-                pairs_map[idx].append(os.path.join(self.mask_path_dir, f))
-                final_pairs_list.append(pairs_map[idx])
-
-        print(f"Found {len(final_pairs_list)}  (image, mask) pairs")
-        return final_pairs_list
+        print(f"Found {len(pairs_map)}  (image, mask) pairs")
+        return [v for k, v in sorted(pairs_map.items())]
 
     def __len__(self):
         return len(self.file_pairs)
 
     def __getitem__(self, idx):
+        if self.single_dir:
+            return self._get_single_items(idx)
+        return self._get_pair_items(idx)
+    
+    def _get_single_items(self,idx):
+        image_path = self.file_pairs[idx]
+        image = iio.imread(image_path)  # (H, W)
+
+        image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255
+        image = image.astype(np.uint8)
+
+        if self.transforms:
+            image = self.transforms(image)
+        elif self.img_transforms:
+            image = self.img_transforms(image)
+
+        return (image)
+
+    def _get_pair_items(self,idx):
         image_path, label_path = self.file_pairs[idx]
         image = iio.imread(image_path)  # (H, W)
         label = iio.imread(label_path)  # (H, W)
+
+        #streched
+        image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255
+        image = image.astype(np.uint8)
+
 
         if self.transforms:
             image, label = self.transforms(image, label)
@@ -85,7 +110,7 @@ class TiffDataset(Dataset):
                 label = self.label_transforms(label)
 
         return (image, label)
-
+        
     @staticmethod
     def show_img(
         img_data: np.ndarray, streth: bool = True, title: str = "Micro-CT Image"
