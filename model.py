@@ -43,9 +43,18 @@ class ExpansiveBlock(nn.Module):
 
         self.double_conv = DoubleConv(out_channels * 2, out_channels, kernel_size=3)
 
-    def forward(self, x, copped_features):
+    def forward(self, x, copped_x):
         x = self.upsampling(x)
-        x = torch.cat([x, copped_features], dim=1)
+
+        # Padding fix
+        diffY = copped_x.size()[2] - x.size()[2]
+        diffX = copped_x.size()[3] - x.size()[3]
+        x = F.pad(x, [diffX // 2, diffX - diffX // 2,
+                        diffY // 2, diffY - diffY // 2])
+        # Copy from here: https://github.com/milesial/Pytorch-UNet/blob/master/unet/unet_parts.py#L59
+        
+
+        x = torch.cat([x, copped_x], dim=1)
         return self.double_conv(x)
 
 

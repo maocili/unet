@@ -11,7 +11,8 @@ from utils.dataset import TiffDataset
 from utils.weights import kaiming_init_weights
 from utils.loss_function.combo import combo_loss_for_micro
 from utils.loss_function.iou import iou_coeff
-from utils.transformers import MicroImageTransformers, MicroLabelTransformers, MicroTransformers
+from utils.transformers import MicroTransformers
+
 
 
 device = "cpu"
@@ -23,20 +24,13 @@ torch.device(device)
 print("Using device:", device)
 
 # Load Data
-# from utils.transformers import ISBIImageTransformers, ISBILabelTransformers
-# dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
-#                       img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
-train_set = TiffDataset('data/train/image', 'data/train/label',  transforms=MicroTransformers(train=True))
-test_set = TiffDataset('data/test/image', 'data/test/label',  transforms=MicroTransformers(train=True))
+tif_train_data = TiffDataset("data/tif/train/image/","data/tif/train/label/", transforms=MicroTransformers(augment=True))
+png_train_data = TiffDataset("data/png/train/image/","data/png/train/label", transforms=MicroTransformers(augment=True))
+tif_test_data = TiffDataset("data/tif/test/image/","data/tif/test/label/", transforms=MicroTransformers(augment=False))
+png_test_data = TiffDataset("data/png/test/image/","data/png/test/label", transforms=MicroTransformers(augment=False))
 
-# indices = len(dataset)
-# train_size = indices - int(0.2*indices)
-# test_size = indices - train_size
-# Create random splits for train and test sets
-# train_set, test_set = torch.utils.data.random_split(
-#     dataset,
-#     [train_size, test_size]
-# )
+train_set = tif_train_data
+test_set = tif_test_data
 
 print(f"Training set size: {len(train_set)}")
 print(f"Test set size: {len(test_set)}")
@@ -49,7 +43,7 @@ test_loader = DataLoader(
     test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
 
-num_epochs = 20
+num_epochs = 150
 LEARNING_RATE = 1e-4
 
 model = UNet(in_channels=1, out_channels=2).to(device=device)
@@ -57,7 +51,7 @@ model.apply(kaiming_init_weights)
 
 criterion = combo_loss_for_micro
 
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-5)
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
 
 best_val_loss = float('inf')
 best_iou = 0.0
@@ -119,4 +113,3 @@ for epoch in range(num_epochs):
     if epoch+1 == num_epochs:
         torch.save(model.state_dict(), 'least_unet_model.pth')
         print("Saved least_unet_model.pth")
-
