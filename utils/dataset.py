@@ -63,8 +63,8 @@ class TiffDataset(Dataset):
 
                 idx = self.__get_numeric_key(f)
                 if idx in pairs_map:
-                    img_path = pairs_map[idx] 
-                    pairs_map[idx] = (img_path,os.path.join(self.mask_path_dir, f))
+                    img_path = pairs_map[idx]
+                    pairs_map[idx] = (img_path, os.path.join(self.mask_path_dir, f))
 
         print(f"Found {len(pairs_map)}  (image, mask) pairs")
         return [v for k, v in sorted(pairs_map.items())]
@@ -72,34 +72,34 @@ class TiffDataset(Dataset):
     def __len__(self):
         return len(self.file_pairs)
 
+    def __image_strech_uint8(img):
+        image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255
+        return image.astype(np.uint8)
+
     def __getitem__(self, idx):
         if self.single_dir:
             return self._get_single_items(idx)
         return self._get_pair_items(idx)
-    
-    def _get_single_items(self,idx):
+
+    def _get_single_items(self, idx):
         image_path = self.file_pairs[idx]
         image = iio.imread(image_path)  # (H, W)
 
-        image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255
-        image = image.astype(np.uint8)
+        image = self.__image_strech_uint8(image)
 
         if self.transforms:
             image = self.transforms(image)
         elif self.img_transforms:
             image = self.img_transforms(image)
-
         return (image)
 
-    def _get_pair_items(self,idx):
+    def _get_pair_items(self, idx):
         image_path, label_path = self.file_pairs[idx]
         image = iio.imread(image_path)  # (H, W)
         label = iio.imread(label_path)  # (H, W)
 
-        #streched
-        image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255
-        image = image.astype(np.uint8)
-
+        # streched
+        image = self.__image_strech_uint8(image)
 
         if self.transforms:
             image, label = self.transforms(image, label)
@@ -108,9 +108,8 @@ class TiffDataset(Dataset):
                 image = self.img_transforms(image)
             if self.label_transforms:
                 label = self.label_transforms(label)
-
         return (image, label)
-        
+
     @staticmethod
     def show_img(
         img_data: np.ndarray, streth: bool = True, title: str = "Micro-CT Image"
@@ -138,44 +137,3 @@ class TiffDataset(Dataset):
         plt.title(title)
         plt.axis("off")
         plt.show()
-
-
-# from utils.transformers import ISBIImageTransformers, ISBILabelTransformers
-# from transformers import MicroImageTransformers, MicroLabelTransformers
-# if __name__ == '__main__':
-    # if sys.platform.startswith('win'):
-    #     os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
-    # dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
-
-    #                         img_transforms=ISBIImageTransformers, label_transforms=ISBIlabelTransformers)
-
-    # dataset = TiffDataset('data/image', 'data/label', img_transforms=MicroImageTransformers,
-    #                       label_transforms=MicroLabelTransformers)
-
-    # indices = len(dataset)
-    # train_size = len(dataset) - int(0.2*len(dataset))
-    # test_size = len(dataset) - train_size
-
-    # # Create random splits for train and test sets
-    # train_set, test_set = torch.utils.data.random_split(
-    #     dataset,
-    #     [train_size, test_size]
-    # )
-
-    # print(f"Training set size: {len(train_set)}")
-    # print(f"Test set size: {len(test_set)}")
-
-    # batch_size = 4
-    # train_loader = DataLoader(
-    #     train_set, batch_size=batch_size, shuffle=True, drop_last=True)
-    # test_loader = DataLoader(
-    #     test_set, batch_size=batch_size, shuffle=False, drop_last=False)
-    # images, labels = next(iter(train_loader))
-
-    # # print(images.shape, labels.shape, old)
-
-    # for i, j in zip(images, labels):
-    #     TiffDataset.show_img(i, streth=True, title="Orginal")
-    #     TiffDataset.show_img(j, streth=True, title="Masks")
-    #     break
