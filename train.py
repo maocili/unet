@@ -43,7 +43,7 @@ test_loader = DataLoader(
     test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
 
-num_epochs = 20
+num_epochs = 40
 LEARNING_RATE = 1e-4
 
 model = UNet(in_channels=1, out_channels=2).to(device=device)

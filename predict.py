@@ -17,22 +17,18 @@ from utils.plt import show_predictions
 
 MODEL_PATH = "best_iou_unet_model.pth"
 
-DEVICE = "cpu"
-def define_deivce():
-    if torch.cuda.is_available():
-        DEVICE = "cuda"
-    elif torch.backends.mps.is_available():
-        DEVICE = "mps"
-    torch.device(DEVICE)
-    print("Using device:", DEVICE)
+DEVICE = "cuda"
+if torch.cuda.is_available():
+    DEVICE = "cuda"
+elif torch.backends.mps.is_available():
+    DEVICE = "mps"
+torch.device(DEVICE)
+print("Using device:", DEVICE)
 
 
 def main():
     dataset = TiffDataset(single_dir=True, image_path="data/datasets/10min_HT/",
                           masks_path="", transforms=MicroTransformers(geo_augment=False))
-
-    # dataset = TiffDataset(single_dir=True, image_path="data/tif/test/image/",
-    #                       masks_path="", transforms=MicroTransformers(train=False))
 
     batch_size = 1
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=False)
@@ -87,5 +83,4 @@ def main():
 if __name__ == "__main__":
     if sys.platform.startswith('win'):
         os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-    define_deivce()
     main()

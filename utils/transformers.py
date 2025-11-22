@@ -114,8 +114,9 @@ class MicroTransformers:
         # Only for image augment
         self.pixel_aug_func = v2.Compose([
             v2.ToDtype(torch.float32, scale=True),  # Scale [0,1]
-            Clahe(clip_limit=4.0, grid_size=(8, 8)),
+            Clahe(clip_limit=20.0, grid_size=(8, 8)),
             v2.Normalize(mean=[0.15], std=[0.35]),
+            SobelFilter(),
         ])
 
     def _joint_call(self, img, label):
