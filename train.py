@@ -24,10 +24,10 @@ torch.device(device)
 print("Using device:", device)
 
 # Load Data
-tif_train_data = TiffDataset("data/tif/train/image/","data/tif/train/label/", transforms=MicroTransformers(augment=True))
-png_train_data = TiffDataset("data/png/train/image/","data/png/train/label", transforms=MicroTransformers(augment=True))
-tif_test_data = TiffDataset("data/tif/test/image/","data/tif/test/label/", transforms=MicroTransformers(augment=False))
-png_test_data = TiffDataset("data/png/test/image/","data/png/test/label", transforms=MicroTransformers(augment=False))
+tif_train_data = TiffDataset("data/tif/train/image/","data/tif/train/label/", transforms=MicroTransformers(geo_augment=True))
+png_train_data = TiffDataset("data/png/train/image/","data/png/train/label", transforms=MicroTransformers(geo_augment=True))
+tif_test_data = TiffDataset("data/tif/test/image/","data/tif/test/label/", transforms=MicroTransformers(geo_augment=False))
+png_test_data = TiffDataset("data/png/test/image/","data/png/test/label", transforms=MicroTransformers(geo_augment=False))
 
 train_set = tif_train_data
 test_set = tif_test_data
@@ -43,7 +43,7 @@ test_loader = DataLoader(
     test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
 
-num_epochs = 150
+num_epochs = 20
 LEARNING_RATE = 1e-4
 
 model = UNet(in_channels=1, out_channels=2).to(device=device)

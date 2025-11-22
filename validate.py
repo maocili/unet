@@ -28,8 +28,8 @@ print("Using device:", device)
 
 
 # Load Data
-png_dataset = TiffDataset('data/png/test/image', 'data/png/test/label', transforms=MicroTransformers(augment=False))
-tif_dataset = TiffDataset('data/tif/test/image', 'data/tif/test/label', transforms=MicroTransformers(augment=False))
+png_dataset = TiffDataset('data/png/test/image', 'data/png/test/label', transforms=MicroTransformers(geo_augment=False))
+tif_dataset = TiffDataset('data/tif/test/image', 'data/tif/test/label', transforms=MicroTransformers(geo_augment=False))
 dataset = tif_dataset
 indices = len(dataset)
 

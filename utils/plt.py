@@ -40,7 +40,7 @@ def show_predictions(pairs_list):
             if j == 0:
                 title = "(Original Image)"
             else:
-                title = f"(Prediction {j})"
+                title = f"(Image {j})"
 
             ax.set_title(title)
             ax.axis('off')

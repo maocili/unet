@@ -72,7 +72,7 @@ class TiffDataset(Dataset):
     def __len__(self):
         return len(self.file_pairs)
 
-    def __image_strech_uint8(img):
+    def __image_strech_uint8(self, image):
         image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255
         return image.astype(np.uint8)
 

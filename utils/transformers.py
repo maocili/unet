@@ -1,13 +1,14 @@
 import numpy as np
 import torch
+import kornia
 from torchvision.transforms import v2
 from torchvision import tv_tensors
-from typing import Union, Dict, Any
+from typing import Union, Dict, Any, Tuple
 
 from torchvision.utils import _log_api_usage_once
 
 
-class ToBinaryMask(v2.Transform):
+class ToMasks(v2.Transform):
     def __init__(self) -> None:
         super().__init__()
         _log_api_usage_once(self)
@@ -25,41 +26,13 @@ class ToBinaryMask(v2.Transform):
         if isinstance(inpt, torch.Tensor):
             inpt = inpt.cpu().numpy()
 
-        inpt = (inpt >= 255 / 2).astype(np.uint8)
-
-        mask_tensor = torch.from_numpy(inpt).long()
-        return tv_tensors.Mask(mask_tensor)
-
-
-class ToMicroMasks(v2.Transform):
-    def __init__(self) -> None:
-        super().__init__()
-        _log_api_usage_once(self)
-
-    _transformed_types = (torch.Tensor, np.ndarray)
-
-    def _transform(
-        self, inpt: Union[torch.Tensor, np.ndarray], params: Dict[str, Any]
-    ) -> tv_tensors.Image:
-        return self.transform(inpt, params)
-
-    def transform(
-        self, inpt: Union[torch.Tensor, np.ndarray], params: Dict[str, Any]
-    ) -> tv_tensors.Image:
-        if isinstance(inpt, torch.Tensor):
-            inpt = inpt.cpu().numpy()
-
+        # process .tif(0,1) and .png(0,255) both
         img_stretched = (inpt - np.min(inpt)) / (np.max(inpt) - np.min(inpt)) * 255
         img_stretched = img_stretched.astype(np.uint8)
 
-        final_masks = np.zeros_like(img_stretched, dtype=np.uint8)
-
-        threhold = [5, 250]
-        final_masks[(img_stretched > threhold[0]) & (img_stretched < threhold[1])] = 0  # 127 background
-        final_masks[img_stretched < threhold[0]] = 1  # 0 white area
-        final_masks[(img_stretched > threhold[1])] = 2  # 255 black area
-
-        return final_masks
+        img_binary = (img_stretched >= 255 / 2).astype(np.uint8)
+        mask_tensor = torch.from_numpy(img_binary).long()
+        return tv_tensors.Mask(mask_tensor)
 
 
 ISBIImageTransformers = v2.Compose([
@@ -70,46 +43,102 @@ ISBIImageTransformers = v2.Compose([
 ])
 
 ISBILabelTransformers = v2.Compose([
-    ToBinaryMask(),
+    ToMasks(),
 ])
 
 
-MicroImageTransformers = v2.Compose([
-    v2.ToImage(),
-    v2.ToDtype(torch.float32, scale=True),
-    v2.Normalize(mean=[0.15], std=[0.35]),
-])
+class Clahe(v2.Transform):
+    def __init__(self,  clip_limit: float = 40.0, grid_size: Tuple[int, int] = (8, 8)) -> None:
+        super().__init__()
+        _log_api_usage_once(self)
 
-MicroLabelTransformers = v2.Compose([
-    ToBinaryMask(),
-])
+        self.clip_limit = clip_limit
+        self.grid_size = grid_size
+
+    _transformed_types = (torch.Tensor, np.ndarray)
+
+    def _transform(
+        self, inpt: Union[torch.Tensor, np.ndarray], params: Dict[str, Any]
+    ) -> tv_tensors.Image:
+        return self.transform(inpt, params)
+
+    def transform(
+        self, inpt: Union[torch.Tensor, np.ndarray], params: Dict[str, Any]
+    ) -> tv_tensors.Image:
+        inpt = torch.clamp(inpt, 0.0, 1.0)
+        inpt = kornia.enhance.equalize_clahe(inpt, clip_limit=self.clip_limit, grid_size=self.grid_size)
+        return inpt
+
+
+class SobelFilter(v2.Transform):
+    def __init__(self):
+        super(SobelFilter, self).__init__()
+
+    def _transform(
+        self, inpt: Union[torch.Tensor, np.ndarray], params: Dict[str, Any]
+    ) -> tv_tensors.Image:
+        return self.transform(inpt, params)
+
+    def transform(
+        self, inpt: Union[torch.Tensor, np.ndarray], params: Dict[str, Any]
+    ) -> tv_tensors.Image:
+        is_unbatched = inpt.ndim == 3
+        if is_unbatched:
+            inpt = inpt.unsqueeze(0)  # [B, C, H, W]
+
+        clean_input = kornia.filters.gaussian_blur2d(inpt, (5, 5), (2.0, 2.0))
+        grads = kornia.filters.spatial_gradient(clean_input, mode='sobel')
+
+        grad_x = grads[:, :, 0, :, :]
+        grad_y = grads[:, :, 1, :, :]
+
+        output = 0.5 * grad_x + 0.5 * grad_y
+
+        if is_unbatched:
+            output = output.squeeze(0)  # [C, H, W]
+        return output
 
 
 class MicroTransformers:
-    def __init__(self, train=True):
+    def __init__(self, geo_augment=True):
         self.to_img = v2.ToImage()
-        self.to_mask = ToBinaryMask() 
-        
-        if train:
-            self.geometry_aug = v2.Compose([
-                v2.RandomHorizontalFlip(p=0.5),
-                v2.RandomVerticalFlip(p=0.5),
-            ])
-        else:
-            self.geometry_aug = None
+        self.to_mask = ToMasks()
+        self.geo_augment = geo_augment
 
-        self.pixel_aug = v2.Compose([
-            v2.ToDtype(torch.float32, scale=True),
-            v2.Normalize(mean=[0.2], std=[0.2]),
+        self.geom_aug_func = v2.Compose([
+            v2.RandomHorizontalFlip(p=0.5),
+            v2.RandomVerticalFlip(p=0.5),
+            v2.ElasticTransform(alpha=50.0, sigma=5.0),
         ])
 
-    def __call__(self, img, label):
+        # Only for image augment
+        self.pixel_aug_func = v2.Compose([
+            v2.ToDtype(torch.float32, scale=True),  # Scale [0,1]
+            Clahe(clip_limit=4.0, grid_size=(8, 8)),
+            v2.Normalize(mean=[0.15], std=[0.35]),
+        ])
+
+    def _joint_call(self, img, label):
         img = self.to_img(img)
-        label = self.to_mask(label) 
+        label = self.to_mask(label)
 
-        if self.geometry_aug:
-            img, label = self.geometry_aug(img, label)
-
-        img = self.pixel_aug(img)
+        if self.geo_augment:
+            img, label = self.geom_aug_func(img, label)
+        img = self.pixel_aug_func(img)
 
         return img, label
+
+    def __call__(self, img: Any = None, label: Any = None):
+        if img is not None and label is not None:
+            return self._joint_call(img=img, label=label)
+
+        if img is not None:
+            img = self.to_img(img)
+
+            if self.geo_augment:
+                img = self.geom_aug_func(img)
+            img = self.pixel_aug_func(img)
+            return img
+
+        label = self.to_mask(label)
+        return label
