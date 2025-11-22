@@ -213,5 +213,7 @@ __marimo__/
 # dataset
 *.tif
 *.png
+*.zip
+
 # module
 *.pth
