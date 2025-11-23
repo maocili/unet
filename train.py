@@ -11,7 +11,8 @@ from utils.dataset import TiffDataset
 from utils.weights import kaiming_init_weights
 from utils.loss_function.combo import combo_loss_for_micro
 from utils.loss_function.iou import iou_coeff
-from utils.transformers import MicroImageTransformers, MicroLabelTransformers, MicroTransformers
+from utils.transformers import MicroTransformers
+
 
 
 device = "cpu"
@@ -23,20 +24,13 @@ torch.device(device)
 print("Using device:", device)
 
 # Load Data
-# from utils.transformers import ISBIImageTransformers, ISBILabelTransformers
-# dataset = TiffDataset('data_isbi/train/images', 'data_isbi/train/labels',
-#                       img_transforms=ISBIImageTransformers, label_transforms=ISBILableTransformers)
-train_set = TiffDataset('data/train/image', 'data/train/label',  transforms=MicroTransformers(train=True))
-test_set = TiffDataset('data/test/image', 'data/test/label',  transforms=MicroTransformers(train=True))
+tif_train_data = TiffDataset("data/tif/train/image/","data/tif/train/label/", transforms=MicroTransformers(geo_augment=True))
+png_train_data = TiffDataset("data/png/train/image/","data/png/train/label", transforms=MicroTransformers(geo_augment=True))
+tif_test_data = TiffDataset("data/tif/test/image/","data/tif/test/label/", transforms=MicroTransformers(geo_augment=False))
+png_test_data = TiffDataset("data/png/test/image/","data/png/test/label", transforms=MicroTransformers(geo_augment=False))
 
-# indices = len(dataset)
-# train_size = indices - int(0.2*indices)
-# test_size = indices - train_size
-# Create random splits for train and test sets
-# train_set, test_set = torch.utils.data.random_split(
-#     dataset,
-#     [train_size, test_size]
-# )
+train_set = png_train_data
+test_set = png_test_data
 
 print(f"Training set size: {len(train_set)}")
 print(f"Test set size: {len(test_set)}")
@@ -119,4 +113,3 @@ for epoch in range(num_epochs):
     if epoch+1 == num_epochs:
         torch.save(model.state_dict(), 'least_unet_model.pth')
         print("Saved least_unet_model.pth")
-

@@ -1,106 +1,88 @@
 import sys
 import os
 from model import UNet
-from utils.dataset import TiffDataset
-from utils.transformers import MicroImageTransformers, MicroLabelTransformers, MicroTransformers
-from utils.loss_function.combo import combo_loss_for_micro
-from utils.loss_function.iou import iou_coeff
-
 import torch
 import numpy as np
 import pandas as pd
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset, Subset
 import matplotlib.pyplot as plt
+import imageio.v2 as iio
+from monai.inferers import sliding_window_inference
 
+from utils.dataset import TiffDataset
+from utils.transformers import MicroTransformers
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from utils.plt import show_predictions
 
-if sys.platform.startswith('win'):
-    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
-
-device = "cpu"
-if torch.cuda.is_available():
-    device = "cuda"
-elif torch.backends.mps.is_available():
-    device = "mps"
-torch.device(device)
-print("Using device:", device)
-
-
-# Load Data
-dataset = TiffDataset(
-    'data/test/image', 'data/test/label', transforms=MicroTransformers(train=False))
-indices = len(dataset)
-
-print(f"Test set size: {len(dataset)}")
-
-
-BATCH_SIZE = 4
-loader = DataLoader(dataset, batch_size=BATCH_SIZE,
-                    shuffle=False, drop_last=False)
-
-
-# Test
 MODEL_PATH = "best_iou_unet_model.pth"
-model = UNet(in_channels=1, out_channels=2).to(device)
-total_params = sum(p.numel() for p in model.parameters())
-print(f"Total Parameters:", {total_params})
 
-try:
-    model.load_state_dict(torch.load(MODEL_PATH, map_location=device, weights_only=True))
-except FileNotFoundError:
-    exit()
+DEVICE = "cuda"
+if torch.cuda.is_available():
+    DEVICE = "cuda"
+elif torch.backends.mps.is_available():
+    DEVICE = "mps"
+torch.device(DEVICE)
+print("Using device:", DEVICE)
 
-model.eval()
 
-criterion = combo_loss_for_micro
+def main():
+    dataset = TiffDataset(single_dir=True, image_path="data/datasets/10min_HT/",
+                          masks_path="", transforms=MicroTransformers(geo_augment=False))
 
-total_test_loss = 0.0
-image_list = []
-masks_list = []
-preds_list = []
-with torch.no_grad():
-    for images, masks in loader:
-        images = images.to(device)
-        masks = masks.to(device).long()
-        masks_pred = model(images)
+    batch_size = 1
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=False)
 
-        batch_loss = criterion(masks_pred, masks)
-        total_test_loss += batch_loss
+    model = UNet(in_channels=1, out_channels=2).to(DEVICE)
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"Total Parameters:", {total_params})
+    try:
+        print(f"Loading model: {MODEL_PATH}")
+        model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE, weights_only=True))
+    except FileNotFoundError:
+        exit()
+    model.eval()
 
-        masks_pred = torch.argmax(masks_pred, dim=1)
-        image_list.append(images.cpu())
-        masks_list.append(masks.cpu())
-        preds_list.append(masks_pred.cpu())
+    p_list = []
+    count = 0
+    page = 16
+    with torch.no_grad():
 
-avg_test_loss = total_test_loss / len(loader)
-print(f" (Test Loss): {avg_test_loss:.4f}")
+        loop = tqdm(loader, desc=f'Predict')
+        for img in loop:
+            img = img.to(DEVICE)
+            if img.ndim == 2:
+                img = img.unsqueeze(0).unsqueeze(0)
 
-page = 1
-for i in range(0, page):
-    images_np = image_list[i]
-    masks_np = masks_list[i]
-    preds_np = preds_list[i]
+            roi_size = (768, 768)
+            sw_batch_size = 2
+            overlap = 0.5
 
-    size = len(images_np)
+            with torch.no_grad():
+                output_mask = sliding_window_inference(
+                    inputs=img,
+                    roi_size=roi_size,
+                    sw_batch_size=sw_batch_size,
+                    predictor=model,
+                    overlap=overlap,
+                    mode='gaussian'
+                )
 
-    fig, axes = plt.subplots(size, 3, figsize=(15, size * 5))
-    if size == 1:
-        axes = [axes]
+            masks_pred = torch.argmax(output_mask, dim=1)
+            img = img.cpu().numpy()
+            masks_pred = masks_pred.cpu().numpy()
 
-    for i in range(size):
-        axes[i, 0].imshow(np.squeeze(images_np[i]), cmap='gray')
-        axes[i, 0].set_title("(Original Image)")
-        axes[i, 0].axis('off')
+            p_list.append((img, masks_pred))
 
-        axes[i, 1].imshow(np.squeeze(masks_np[i]), cmap='gray')
-        axes[i, 1].set_title("(True Mask)")
-        axes[i, 1].axis('off')
+            if count >= page:
+                break
+            count += 1
 
-        iou = iou_coeff(masks_np[i], preds_np[i])
-        print(f"IoU={iou :.4f}")
-        axes[i, 2].imshow(preds_np[i], cmap='gray')
-        axes[i, 2].set_title(f"(Predicted Mask) iou = {iou :.4f}")
-        axes[i, 2].axis('off')
-    plt.tight_layout()
-    plt.show()
+    for p in p_list:
+        show_predictions(p)
+
+
+if __name__ == "__main__":
+    if sys.platform.startswith('win'):
+        os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+    main()
