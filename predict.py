@@ -45,7 +45,7 @@ def main():
 
     p_list = []
     count = 0
-    page = 4
+    page = 16
     with torch.no_grad():
 
         loop = tqdm(loader, desc=f'Predict')
@@ -70,14 +70,16 @@ def main():
 
             masks_pred = torch.argmax(output_mask, dim=1)
             img = img.cpu().numpy()
+            masks_pred = masks_pred.cpu().numpy()
 
             p_list.append((img, masks_pred))
 
-            if count+1 >= page:
+            if count >= page:
                 break
             count += 1
 
-    show_predictions(p_list)
+    for p in p_list:
+        show_predictions(p)
 
 
 if __name__ == "__main__":
