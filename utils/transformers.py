@@ -108,13 +108,13 @@ class MicroTransformers:
         self.geom_aug_func = v2.Compose([
             v2.RandomHorizontalFlip(p=0.5),
             v2.RandomVerticalFlip(p=0.5),
-            v2.ElasticTransform(alpha=50.0, sigma=5.0),
+            v2.ElasticTransform(alpha=30.0, sigma=5.0),
         ])
 
         # Only for image augment
         self.pixel_aug_func = v2.Compose([
             v2.ToDtype(torch.float32, scale=True),  # Scale [0,1]
-            Clahe(clip_limit=20.0, grid_size=(8, 8)),
+            Clahe(clip_limit=40.0, grid_size=(8, 8)),
             v2.Normalize(mean=[0.15], std=[0.35]),
             SobelFilter(),
         ])

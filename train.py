@@ -29,8 +29,8 @@ png_train_data = TiffDataset("data/png/train/image/","data/png/train/label", tra
 tif_test_data = TiffDataset("data/tif/test/image/","data/tif/test/label/", transforms=MicroTransformers(geo_augment=False))
 png_test_data = TiffDataset("data/png/test/image/","data/png/test/label", transforms=MicroTransformers(geo_augment=False))
 
-train_set = tif_train_data
-test_set = tif_test_data
+train_set = png_train_data
+test_set = png_test_data
 
 print(f"Training set size: {len(train_set)}")
 print(f"Test set size: {len(test_set)}")
@@ -43,7 +43,7 @@ test_loader = DataLoader(
     test_set, batch_size=batch_size, shuffle=False, drop_last=False)
 
 
-num_epochs = 40
+num_epochs = 20
 LEARNING_RATE = 1e-4
 
 model = UNet(in_channels=1, out_channels=2).to(device=device)
@@ -51,7 +51,7 @@ model.apply(kaiming_init_weights)
 
 criterion = combo_loss_for_micro
 
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-5)
 
 best_val_loss = float('inf')
 best_iou = 0.0
