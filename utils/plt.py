@@ -3,6 +3,27 @@ import torch
 import numpy as np
 
 
+def show_loss_plt(data, title="Training Metrics"):
+    if not data:
+        print("Warning: data is empty.")
+        return
+
+    first_key = next(iter(data))
+    epochs = range(1, len(data[first_key]) + 1)
+
+    plt.figure(figsize=(10, 6))
+
+    for key in sorted(data.keys()):
+        plt.plot(epochs, data[key], label=key, linewidth=2)
+    plt.title(title)
+    plt.xlabel('Epochs')
+    plt.ylabel('Value')
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.5)
+
+    plt.tight_layout()
+    plt.show()
+
 
 def show_predictions(pairs_list):
     rows = len(pairs_list)
@@ -40,10 +61,11 @@ def show_predictions(pairs_list):
             if j == 0:
                 title = "(Original Image)"
             else:
-                title = f"(Image {j})"
+                title = f"(Prediction Image)"
 
             ax.set_title(title)
             ax.axis('off')
 
+    fig.suptitle("Visualization of Pseudo-label Generation", fontsize=20)
     plt.tight_layout()
     plt.show()
