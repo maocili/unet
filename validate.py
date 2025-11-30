@@ -1,6 +1,6 @@
 import sys
 import os
-from model import UNet
+from models.unet import UNet
 from utils.dataset import TiffDataset
 from utils.transformers import MicroTransformers
 from utils.loss_function.combo import combo_loss_for_micro

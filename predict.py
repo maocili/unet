@@ -1,6 +1,6 @@
 import sys
 import os
-from model import UNet
+from models.unet import UNet
 import torch
 import numpy as np
 import pandas as pd
