@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, Subset
 from tqdm import tqdm
 
-from models.unet import UNet
+from models import UNet
 from utils.dataset import TiffDataset
 from utils.weights import kaiming_init_weights
 from utils.loss_function.combo import combo_loss_for_micro
