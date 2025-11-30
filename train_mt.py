@@ -166,6 +166,8 @@ def main():
         avg_train_loss = total_loss / len(train_loader)
         avg_class_loss = total_class_loss / len(train_loader)
         avg_cons_loss = total_cons_loss / len(train_loader)
+        consistency_weight = get_current_consistency_weight(epoch=epoch)
+
 
         print(f"Epoch [{epoch + 1}] | Train Loss: {avg_train_loss:.4f} "
               f"(Class: {avg_class_loss:.4f} + {consistency_weight:.2f}*Cons: {avg_cons_loss:.4f})")
