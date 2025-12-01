@@ -1,6 +1,6 @@
 import sys
 import os
-from model import UNet
+from models import UNet
 import torch
 import numpy as np
 import pandas as pd
@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils.plt import show_predictions
 
-MODEL_PATH = "best_iou_unet_model.pth"
+MODEL_PATH = "mt_1.pth"
 
 DEVICE = "cuda"
 if torch.cuda.is_available():
@@ -27,7 +27,7 @@ print("Using device:", DEVICE)
 
 
 def main():
-    dataset = TiffDataset(single_dir=True, image_path="data/datasets/10min_HT/",
+    dataset = TiffDataset(single_dir=True, image_path="datasets/10min_HT/",
                           masks_path="", transforms=MicroTransformers(geo_augment=False))
 
     batch_size = 1
@@ -45,7 +45,7 @@ def main():
 
     p_list = []
     count = 0
-    page = 16
+    page = 8
     with torch.no_grad():
 
         loop = tqdm(loader, desc=f'Predict')
@@ -78,8 +78,8 @@ def main():
                 break
             count += 1
 
-    for p in p_list:
-        show_predictions(p)
+    for idx, p in enumerate(p_list):
+        show_predictions([p_list[idx]], f"figures/mean-teacher_10min_HT_sobel_{idx}")
 
 
 if __name__ == "__main__":
