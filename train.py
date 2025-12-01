@@ -174,7 +174,7 @@ def validate(loader, model, criterion, device):
 
             # Calculate IoU (class 1)
             preds = torch.softmax(outputs, dim=1)[:, 1, :, :]
-            iou += iou_coeff(preds, masks)
+            iou += iou_coeff(preds, masks).item()
             val_loss += loss.item()
 
     avg_loss = val_loss / len(loader)
