@@ -30,7 +30,7 @@ print("Using device:", device)
 # Load Data
 png_dataset = TiffDataset('data/png/test/image', 'data/png/test/label', transforms=MicroTransformers(geo_augment=False))
 tif_dataset = TiffDataset('data/tif/test/image', 'data/tif/test/label', transforms=MicroTransformers(geo_augment=False))
-dataset = tif_dataset
+dataset = png_dataset
 indices = len(dataset)
 
 print(f"Test set size: {len(dataset)}")
@@ -42,7 +42,7 @@ loader = DataLoader(dataset, batch_size=BATCH_SIZE,
 
 
 # Test
-MODEL_PATH = "best_iou_unet_model.pth"
+MODEL_PATH = "mt_2.pth"
 model = UNet(in_channels=1, out_channels=2).to(device)
 total_params = sum(p.numel() for p in model.parameters())
 print(f"Total Parameters:", {total_params})

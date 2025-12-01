@@ -116,7 +116,7 @@ class MicroTransformers:
             v2.ToDtype(torch.float32, scale=True),  # Scale [0,1]
             Clahe(clip_limit=40.0, grid_size=(8, 8)),
             v2.Normalize(mean=[0.15], std=[0.35]),
-            v2.GaussianBlur(kernel_size=(5, 5), sigma=(2.0, 2.0)),
+            # v2.GaussianBlur(kernel_size=(5, 5), sigma=(2.0, 2.0)),
             # SobelFilter(),
         ])
 

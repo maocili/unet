@@ -25,7 +25,7 @@ def show_loss_plt(data, title="Training Metrics"):
     plt.show()
 
 
-def show_predictions(pairs_list):
+def show_predictions(pairs_list, filename):
     rows = len(pairs_list)
     if rows == 0:
         print("Warning: pairs_list is empty.")
@@ -68,4 +68,5 @@ def show_predictions(pairs_list):
 
     fig.suptitle("Visualization of Pseudo-label Generation", fontsize=20)
     plt.tight_layout()
+    plt.savefig(filename)
     plt.show()

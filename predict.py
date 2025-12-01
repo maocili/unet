@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils.plt import show_predictions
 
-MODEL_PATH = "best_iou_unet_model.pth"
+MODEL_PATH = "mt_2.pth"
 
 DEVICE = "cuda"
 if torch.cuda.is_available():
@@ -78,8 +78,8 @@ def main():
                 break
             count += 1
 
-    for p in p_list:
-        show_predictions(p)
+    for idx, p in enumerate(p_list):
+        show_predictions(p, f"figures/mean_teacher_prediction_{idx}")
 
 
 if __name__ == "__main__":
