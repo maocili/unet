@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import os
+import pandas as pd 
+from datetime import datetime
 
 from models.unet import UNet
 from utils.dataset import TiffDataset
@@ -13,6 +15,8 @@ from utils.loss_function.iou import iou_coeff
 from utils.transformers import MicroTransformers
 from mean_teacher import ramps, losses
 
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+log_csv_path = f'training_log_{timestamp}.csv'
 
 DEVICE = "cpu"
 if torch.cuda.is_available():
@@ -22,12 +26,12 @@ elif torch.mps.is_available():
 
 
 LEARNING_RATE = 1e-4
-NUM_EPOCHS = 20
-BATCH_SIZE = 2
+NUM_EPOCHS = 200
+BATCH_SIZE = 4
 
 NOISE = True
 EMA_DECAY = 0.999
-CONSISTENCY = 10.0
+CONSISTENCY = 30.0
 CONSISTENCY_RAMPUP = 15.0
 
 global_step = 0
@@ -172,6 +176,23 @@ def main():
         print(f"Epoch [{epoch + 1}] | Train Loss: {avg_train_loss:.4f} "
               f"(Class: {avg_class_loss:.4f} + {consistency_weight:.2f}*Cons: {avg_cons_loss:.4f})")
         print(f"Validation IoU (Teacher): {avg_iou:.4f} Validate Loss: {avg_val_loss:.4f}")
+
+        log_data = {
+            'Epoch': epoch + 1,
+            'Train_Loss': avg_train_loss.item(),
+            'Class_Loss': avg_class_loss.item(),
+            'Cons_Loss': avg_cons_loss.item(),
+            'Cons_Weight': consistency_weight.item(),
+            'Val_Loss': avg_val_loss.item(),
+            'Val_IoU': avg_iou.item()
+        }
+
+        df = pd.DataFrame([log_data])
+
+        if epoch == 0:
+            df.to_csv(log_csv_path, mode='w', index=False, header=True)
+        else:
+            df.to_csv(log_csv_path, mode='a', index=False, header=False)        
 
         if avg_iou > best_iou:
             best_iou = avg_iou
