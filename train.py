@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, Subset
 from tqdm import tqdm
-import pandas as pd 
+import pandas as pd
 from datetime import datetime
 
 from models import UNet
@@ -14,10 +14,13 @@ from utils.weights import kaiming_init_weights
 from utils.loss_function.combo import combo_loss_for_micro
 from utils.loss_function.iou import iou_coeff
 from utils.transformers import MicroTransformers
+from utils.plt import save_loss_data
 
+RESUME = False
+RESUME_MODEL = ""
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-log_csv_path = f'training_log_{timestamp}.csv'
-
+NAME = "U-Net"
+log_csv_path = f'training_{NAME}_log_{timestamp}.csv'
 
 device = "cpu"
 if torch.cuda.is_available():
@@ -28,10 +31,10 @@ torch.device(device)
 print("Using device:", device)
 
 # Load Data
-tif_train_data = TiffDataset("data/tif/train/image/","data/tif/train/label/", transforms=MicroTransformers(geo_augment=True))
-png_train_data = TiffDataset("data/png/train/image/","data/png/train/label", transforms=MicroTransformers(geo_augment=True))
-tif_test_data = TiffDataset("data/tif/test/image/","data/tif/test/label/", transforms=MicroTransformers(geo_augment=False))
-png_test_data = TiffDataset("data/png/test/image/","data/png/test/label", transforms=MicroTransformers(geo_augment=False))
+png_train_data = TiffDataset("data/png/train/image/", "data/png/train/label",
+                             transforms=MicroTransformers(geo_augment=True))
+png_test_data = TiffDataset("data/png/test/image/", "data/png/test/label",
+                            transforms=MicroTransformers(geo_augment=False))
 
 train_set = png_train_data
 test_set = png_test_data
@@ -52,6 +55,10 @@ LEARNING_RATE = 1e-4
 
 model = UNet(in_channels=1, out_channels=2).to(device=device)
 model.apply(kaiming_init_weights)
+
+if RESUME:
+    model.load_state_dict(torch.load(RESUME_MODEL, map_location=device, weights_only=True))
+
 
 criterion = combo_loss_for_micro
 
@@ -105,27 +112,19 @@ for epoch in range(num_epochs):
             f"Epoch [{epoch + 1}] | training loss : {avg_train_loss:.4f} | val loss: {avg_val_loss:.4f} | IoU={avg_iou :.4f} ")
 
     log_data = {
-            'Epoch': epoch + 1,
-            'Train_Loss': avg_train_loss.item(),
-            'Val_Loss': avg_val_loss.item(),
-            'Val_IoU': avg_iou.item()
-        }
-    df = pd.DataFrame([log_data])
-    if epoch == 0:
-        df.to_csv(log_csv_path, mode='w', index=False, header=True)
-    else:
-        df.to_csv(log_csv_path, mode='a', index=False, header=False)        
+        'Epoch': epoch + 1,
+        'Train_Loss': avg_train_loss.item(),
+        'Val_Loss': avg_val_loss.item(),
+        'Val_IoU': avg_iou.item()
+    }
+    save_loss_data(pd.DataFrame([log_data]))
 
-    if avg_val_loss < best_val_loss:
-        best_val_loss = avg_val_loss
-        torch.save(model.state_dict(), 'best_unet_model.pth')
-        print("Saved best_unet_model")
 
     if avg_iou > best_iou:
         best_iou = avg_iou
-        torch.save(model.state_dict(), 'best_iou_unet_model.pth')
+        torch.save(model.state_dict(), f'best_iou_unet_model_{timestamp}.pth')
         print("Saved best_IoU_unet_model")
 
     if epoch+1 == num_epochs:
-        torch.save(model.state_dict(), 'least_unet_model.pth')
+        torch.save(model.state_dict(), f'least_unet_model_{timestamp}.pth')
         print("Saved least_unet_model.pth")

@@ -1,7 +1,8 @@
+import os
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
-
+import pandas as pd
 
 def show_loss_plt(data, title="Training Metrics"):
     if not data:
@@ -69,3 +70,10 @@ def show_predictions(pairs_list, filename):
     fig.suptitle("Visualization of Pseudo-label Generation", fontsize=14)
     plt.tight_layout()
     plt.savefig(filename)
+
+def save_loss_data(df: pd.DataFrame, filename="data.csv"):
+    file_exists = os.path.isfile(filename)
+    if not file_exists:
+        df.to_csv(filename, mode='w', index=False, header=True)
+    else:
+        df.to_csv(filename, mode='a', index=False, header=False)
