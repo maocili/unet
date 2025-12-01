@@ -1,3 +1,4 @@
+# This file is deprecated. Please use 'train.py' with '--mean-teacher'
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -204,4 +205,5 @@ def main():
 
 
 if __name__ == "__main__":
+    print("Warning: This file is deprecated. Please use 'train.py' with '--mean-teacher'")
     main()
