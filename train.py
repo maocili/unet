@@ -5,6 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, Subset
 from tqdm import tqdm
+import pandas as pd 
+from datetime import datetime
 
 from models import UNet
 from utils.dataset import TiffDataset
@@ -13,6 +15,8 @@ from utils.loss_function.combo import combo_loss_for_micro
 from utils.loss_function.iou import iou_coeff
 from utils.transformers import MicroTransformers
 
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+log_csv_path = f'training_log_{timestamp}.csv'
 
 
 device = "cpu"
@@ -99,6 +103,18 @@ for epoch in range(num_epochs):
     if epoch % (num_epochs/num_epochs) == 0:
         print(
             f"Epoch [{epoch + 1}] | training loss : {avg_train_loss:.4f} | val loss: {avg_val_loss:.4f} | IoU={avg_iou :.4f} ")
+
+    log_data = {
+            'Epoch': epoch + 1,
+            'Train_Loss': avg_train_loss.item(),
+            'Val_Loss': avg_val_loss.item(),
+            'Val_IoU': avg_iou.item()
+        }
+    df = pd.DataFrame([log_data])
+    if epoch == 0:
+        df.to_csv(log_csv_path, mode='w', index=False, header=True)
+    else:
+        df.to_csv(log_csv_path, mode='a', index=False, header=False)        
 
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss
