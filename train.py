@@ -21,6 +21,11 @@ def parse_args():
     
     parser.add_argument("--name", type=str, default="U-Net", help="Experiment name (default: U-Net)")
     parser.add_argument("--device", type=str, default=None, help="Device to use (cuda, mps, cpu). Default is auto-detect.")
+
+    parser.add_argument("--train-img", type=str, default="data/tif/train/image/", help="Path to training images")
+    parser.add_argument("--train-lbl", type=str, default="data/tif/train/label", help="Path to training labels")
+    parser.add_argument("--test-img", type=str, default="data/tif/test/image/", help="Path to test images")
+    parser.add_argument("--test-lbl", type=str, default="data/tif/test/label", help="Path to test labels")
     
     parser.add_argument("--epochs", type=int, default=20, help="Number of total epochs (default: 20)")
     parser.add_argument("--batch-size", type=int, default=4, help="Batch size (default: 4)")
@@ -98,13 +103,13 @@ def main():
     print(f"Log file will be saved to: {log_csv_path}")
 
     train_dataset = TiffDataset(
-        "data/png/train/image/", 
-        "data/png/train/label",
+        args.train_img, 
+        args.train_lbl,
         transforms=MicroTransformers(geo_augment=True)
     )
     test_dataset = TiffDataset(
-        "data/png/test/image/", 
-        "data/png/test/label",
+        args.test_img, 
+        args.test_lbl,
         transforms=MicroTransformers(geo_augment=False)
     )
 
