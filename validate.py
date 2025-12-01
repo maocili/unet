@@ -36,13 +36,13 @@ indices = len(dataset)
 print(f"Test set size: {len(dataset)}")
 
 
-BATCH_SIZE = 4
+BATCH_SIZE = 2
 loader = DataLoader(dataset, batch_size=BATCH_SIZE,
                     shuffle=False, drop_last=False)
 
 
 # Test
-MODEL_PATH = "mt_2.pth"
+MODEL_PATH = "mt_1.pth"
 model = UNet(in_channels=1, out_channels=2).to(device)
 total_params = sum(p.numel() for p in model.parameters())
 print(f"Total Parameters:", {total_params})
@@ -66,7 +66,7 @@ with torch.no_grad():
         masks = masks.to(device).long()
         masks_pred = model(images)
 
-        batch_loss = criterion(masks_pred, masks)
+        batch_loss = criterion(masks_pred.cpu(), masks.cpu())
         total_test_loss += batch_loss
 
         masks_pred = torch.argmax(masks_pred, dim=1)
@@ -104,4 +104,5 @@ for i in range(0, page):
         axes[i, 2].set_title(f"(Predicted Mask) iou = {iou :.4f}")
         axes[i, 2].axis('off')
     plt.tight_layout()
+    plt.savefig(f"figures/mean-teacher_sobel_valiate_{0}")
     plt.show() 

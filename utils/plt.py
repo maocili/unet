@@ -66,7 +66,6 @@ def show_predictions(pairs_list, filename):
             ax.set_title(title)
             ax.axis('off')
 
-    fig.suptitle("Visualization of Pseudo-label Generation", fontsize=20)
+    fig.suptitle("Visualization of Pseudo-label Generation", fontsize=14)
     plt.tight_layout()
     plt.savefig(filename)
-    plt.show()

@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils.plt import show_predictions
 
-MODEL_PATH = "mt_2.pth"
+MODEL_PATH = "mt_1.pth"
 
 DEVICE = "cuda"
 if torch.cuda.is_available():
@@ -27,7 +27,7 @@ print("Using device:", DEVICE)
 
 
 def main():
-    dataset = TiffDataset(single_dir=True, image_path="data/datasets/10min_HT/",
+    dataset = TiffDataset(single_dir=True, image_path="datasets/10min_HT/",
                           masks_path="", transforms=MicroTransformers(geo_augment=False))
 
     batch_size = 1
@@ -45,7 +45,7 @@ def main():
 
     p_list = []
     count = 0
-    page = 16
+    page = 8
     with torch.no_grad():
 
         loop = tqdm(loader, desc=f'Predict')
@@ -79,7 +79,7 @@ def main():
             count += 1
 
     for idx, p in enumerate(p_list):
-        show_predictions(p, f"figures/mean_teacher_prediction_{idx}")
+        show_predictions([p_list[idx]], f"figures/mean-teacher_10min_HT_sobel_{idx}")
 
 
 if __name__ == "__main__":
