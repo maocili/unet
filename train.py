@@ -6,6 +6,7 @@ from tqdm import tqdm
 import os
 import pandas as pd 
 from datetime import datetime
+import argparse 
 
 from models.unet import UNet
 from utils.dataset import TiffDataset
@@ -15,33 +16,31 @@ from utils.loss_function.iou import iou_coeff
 from utils.transformers import MicroTransformers
 from utils.plt import save_loss_data
 
-# --- Configuration ---
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-NAME = "U-Net"
-log_csv_path = f'training_{NAME}_log_{timestamp}.csv'
+def parse_args():
+    parser = argparse.ArgumentParser(description="U-Net Training Script")
+    
+    parser.add_argument("--name", type=str, default="U-Net", help="Experiment name (default: U-Net)")
+    parser.add_argument("--device", type=str, default=None, help="Device to use (cuda, mps, cpu). Default is auto-detect.")
+    
+    parser.add_argument("--epochs", type=int, default=20, help="Number of total epochs (default: 20)")
+    parser.add_argument("--batch-size", type=int, default=4, help="Batch size (default: 4)")
+    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate (default: 1e-4)")
+    
+    # Resume 
+    parser.add_argument("--resume", action="store_true", help="Flag to resume training from a checkpoint")
+    parser.add_argument("--resume-path", type=str, default="last_u-net_model.pth", help="Path to the checkpoint file to resume from")
 
-DEVICE = "cpu"
-if torch.cuda.is_available():
-    DEVICE = "cuda"
-elif torch.backends.mps.is_available():
-    DEVICE = "mps"
+    return parser.parse_args()
 
-LEARNING_RATE = 1e-4
-NUM_EPOCHS = 1
-BATCH_SIZE = 2 
-
-RESUME = False 
-RESUME_CHECKPOINT_PATH = ""
-
-def train(loader, model, optimizer, criterion, epoch):
+def train(loader, model, optimizer, criterion, epoch, device, num_epochs):
     model.train()
     total_loss = 0.0
     
-    loop = tqdm(loader, desc=f"Epoch {epoch+1}/{NUM_EPOCHS}")
+    loop = tqdm(loader, desc=f"Epoch {epoch+1}/{num_epochs}")
     
     for images, masks in loop:
-        images = images.to(DEVICE)
-        masks = masks.to(DEVICE).long()
+        images = images.to(device)
+        masks = masks.to(device).long()
 
         outputs = model(images)
         loss = criterion(outputs, masks)
@@ -58,15 +57,15 @@ def train(loader, model, optimizer, criterion, epoch):
     avg_loss = total_loss / len(loader)
     return avg_loss
 
-def validate(loader, model, criterion):
+def validate(loader, model, criterion, device):
     model.eval()
     val_loss = 0.0
     iou = 0.0
     
     with torch.no_grad():
         for images, masks in loader:
-            images = images.to(DEVICE)
-            masks = masks.to(DEVICE).long()
+            images = images.to(device)
+            masks = masks.to(device).long()
 
             outputs = model(images)
             loss = criterion(outputs, masks)
@@ -82,12 +81,25 @@ def validate(loader, model, criterion):
     return avg_loss, avg_iou
 
 def main():
-    print(f"Using device: {DEVICE}")
+    args = parse_args()
+    
+    if args.device:
+        device = args.device
+    else:
+        device = "cpu"
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
+            device = "mps"
+    print(f"Using device: {device}")
 
-    # --- Load Data ---
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_csv_path = f'training_{args.name}_log_{timestamp}.csv'
+    print(f"Log file will be saved to: {log_csv_path}")
+
     train_dataset = TiffDataset(
-        "data/tif/train/image/", 
-        "data/tif/train/label",
+        "data/png/train/image/", 
+        "data/png/train/label",
         transforms=MicroTransformers(geo_augment=True)
     )
     test_dataset = TiffDataset(
@@ -99,62 +111,55 @@ def main():
     print(f"Training set size: {len(train_dataset)}")
     print(f"Test set size: {len(test_dataset)}")
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, drop_last=False)
 
-    # --- Model Initialization ---
-    model = UNet(in_channels=1, out_channels=2).to(DEVICE)
-    
-    # 默认使用 Kaiming 初始化
+    model = UNet(in_channels=1, out_channels=2).to(device)
     model.apply(kaiming_init_weights)
 
-    # --- Resume Logic (新增逻辑) ---
-    if RESUME:
-        if os.path.isfile(RESUME_CHECKPOINT_PATH):
-            print(f"Loading checkpoint from: {RESUME_CHECKPOINT_PATH}")
+    # Resume Logic
+    if args.resume:
+        if os.path.isfile(args.resume_path):
+            print(f"Loading checkpoint from: {args.resume_path}")
             try:
-                model.load_state_dict(torch.load(RESUME_CHECKPOINT_PATH, map_location=DEVICE, weights_only=True))
+                model.load_state_dict(torch.load(args.resume_path, map_location=device, weights_only=True))
             except TypeError:
-                model.load_state_dict(torch.load(RESUME_CHECKPOINT_PATH, map_location=DEVICE))
+                model.load_state_dict(torch.load(args.resume_path, map_location=device))
             print("Checkpoint loaded successfully.")
         else:
-            print(f"Warning: Checkpoint file not found at {RESUME_CHECKPOINT_PATH}. Training from scratch.")
+            print(f"Warning: Checkpoint file not found at {args.resume_path}. Training from scratch.")
 
-    # --- Optimizer & Criterion ---
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-5)
     criterion = combo_loss_for_micro
 
     best_iou = 0.0
 
-    # --- Training Loop ---
-    for epoch in range(NUM_EPOCHS):
+    for epoch in range(args.epochs):
         # Train
-        train_loss = train(train_loader, model, optimizer, criterion, epoch)
+        train_loss = train(train_loader, model, optimizer, criterion, epoch, device, args.epochs)
         
         # Validate
-        val_loss, val_iou = validate(test_loader, model, criterion)
+        val_loss, val_iou = validate(test_loader, model, criterion, device)
 
-        # Print metrics
         print(f"Epoch [{epoch + 1}] | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val IoU: {val_iou:.4f}")
 
-        # Log Data
         log_data = {
             'Epoch': epoch + 1,
             'Train_Loss': train_loss,
             'Val_Loss': val_loss,
             'Val_IoU': val_iou
         }
-        save_loss_data(pd.DataFrame([log_data]),log_csv_path)
+        save_loss_data(pd.DataFrame([log_data]), log_csv_path)
         
-        # Save Best Model
         if val_iou > best_iou:
             best_iou = val_iou
-            torch.save(model.state_dict(), f'best_iou_{NAME.lower()}_model.pth')
-            print(f"Saved best model with IoU: {best_iou:.4f}")
+            save_name = f'best_iou_{args.name.lower()}_model.pth'
+            torch.save(model.state_dict(), save_name)
+            print(f"Saved best model ({save_name}) with IoU: {best_iou:.4f}")
 
-    # Save Last Model
-    torch.save(model.state_dict(), f'last_{NAME.lower()}_model.pth')
-    print("Saved last model.")
+    last_name = f'last_{args.name.lower()}_model.pth'
+    torch.save(model.state_dict(), last_name)
+    print(f"Saved last model to {last_name}")
 
 if __name__ == "__main__":
     main()
