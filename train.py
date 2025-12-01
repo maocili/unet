@@ -1,14 +1,13 @@
-import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
-import pandas as pd
+import os
+import pandas as pd 
 from datetime import datetime
 
-from models import UNet
+from models.unet import UNet
 from utils.dataset import TiffDataset
 from utils.weights import kaiming_init_weights
 from utils.loss_function.combo import combo_loss_for_micro
@@ -16,115 +15,146 @@ from utils.loss_function.iou import iou_coeff
 from utils.transformers import MicroTransformers
 from utils.plt import save_loss_data
 
-RESUME = False
-RESUME_MODEL = ""
+# --- Configuration ---
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 NAME = "U-Net"
 log_csv_path = f'training_{NAME}_log_{timestamp}.csv'
 
-device = "cpu"
+DEVICE = "cpu"
 if torch.cuda.is_available():
-    device = "cuda"
+    DEVICE = "cuda"
 elif torch.backends.mps.is_available():
-    device = "mps"
-torch.device(device)
-print("Using device:", device)
+    DEVICE = "mps"
 
-# Load Data
-png_train_data = TiffDataset("data/png/train/image/", "data/png/train/label",
-                             transforms=MicroTransformers(geo_augment=True))
-png_test_data = TiffDataset("data/png/test/image/", "data/png/test/label",
-                            transforms=MicroTransformers(geo_augment=False))
-
-train_set = png_train_data
-test_set = png_test_data
-
-print(f"Training set size: {len(train_set)}")
-print(f"Test set size: {len(test_set)}")
-
-batch_size = 1
-train_loader = DataLoader(
-    train_set, batch_size=batch_size, shuffle=True, drop_last=True)
-
-test_loader = DataLoader(
-    test_set, batch_size=batch_size, shuffle=False, drop_last=False)
-
-
-num_epochs = 20
 LEARNING_RATE = 1e-4
+NUM_EPOCHS = 1
+BATCH_SIZE = 2 
 
-model = UNet(in_channels=1, out_channels=2).to(device=device)
-model.apply(kaiming_init_weights)
+RESUME = False 
+RESUME_CHECKPOINT_PATH = ""
 
-if RESUME:
-    model.load_state_dict(torch.load(RESUME_MODEL, map_location=device, weights_only=True))
-
-
-criterion = combo_loss_for_micro
-
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-5)
-
-best_val_loss = float('inf')
-best_iou = 0.0
-
-for epoch in range(num_epochs):
+def train(loader, model, optimizer, criterion, epoch):
     model.train()
-    total_train_loss = 0.0
-
-    loop = tqdm(train_loader, desc=f'Epoch {epoch+1}')
+    total_loss = 0.0
+    
+    loop = tqdm(loader, desc=f"Epoch {epoch+1}/{NUM_EPOCHS}")
+    
     for images, masks in loop:
-        images = images.to(device=device)
-        masks = masks.to(device=device).long()
+        images = images.to(DEVICE)
+        masks = masks.to(DEVICE).long()
 
-        masks_pred = model(images)
-
-        batch_loss = criterion(masks_pred, masks)
+        outputs = model(images)
+        loss = criterion(outputs, masks)
 
         optimizer.zero_grad()
-        batch_loss.backward()
+        loss.backward()
         optimizer.step()
 
-        total_train_loss += batch_loss.item()
+        total_loss += loss.item()
+        
+        # Update progress bar
+        loop.set_postfix(loss=loss.item())
 
-    avg_train_loss = total_train_loss/float(len(train_set))
+    avg_loss = total_loss / len(loader)
+    return avg_loss
 
+def validate(loader, model, criterion):
     model.eval()
     val_loss = 0.0
     iou = 0.0
+    
     with torch.no_grad():
-        for images, masks in test_loader:
-            images = images.to(device)
-            masks = masks.to(device).long()
+        for images, masks in loader:
+            images = images.to(DEVICE)
+            masks = masks.to(DEVICE).long()
 
-            masks_pred = model(images)
+            outputs = model(images)
+            loss = criterion(outputs, masks)
 
-            loss = criterion(masks_pred, masks)
-
-            masks_pred = torch.softmax(masks_pred, dim=1)[:, 1, :, :]
-            iou += iou_coeff(masks_pred, masks)
+            # Calculate IoU
+            # assuming outputs shape [B, C, H, W] and class 1 is the target
+            preds = torch.softmax(outputs, dim=1)[:, 1, :, :]
+            iou += iou_coeff(preds, masks)
             val_loss += loss.item()
 
-    avg_val_loss = val_loss / float(len(test_set))
-    avg_iou = iou / float(len(test_set))
+    avg_loss = val_loss / len(loader)
+    avg_iou = iou / len(loader)
+    return avg_loss, avg_iou
 
-    if epoch % (num_epochs/num_epochs) == 0:
-        print(
-            f"Epoch [{epoch + 1}] | training loss : {avg_train_loss:.4f} | val loss: {avg_val_loss:.4f} | IoU={avg_iou :.4f} ")
+def main():
+    print(f"Using device: {DEVICE}")
 
-    log_data = {
-        'Epoch': epoch + 1,
-        'Train_Loss': avg_train_loss.item(),
-        'Val_Loss': avg_val_loss.item(),
-        'Val_IoU': avg_iou.item()
-    }
-    save_loss_data(pd.DataFrame([log_data]))
+    # --- Load Data ---
+    train_dataset = TiffDataset(
+        "data/tif/train/image/", 
+        "data/tif/train/label",
+        transforms=MicroTransformers(geo_augment=True)
+    )
+    test_dataset = TiffDataset(
+        "data/png/test/image/", 
+        "data/png/test/label",
+        transforms=MicroTransformers(geo_augment=False)
+    )
 
+    print(f"Training set size: {len(train_dataset)}")
+    print(f"Test set size: {len(test_dataset)}")
 
-    if avg_iou > best_iou:
-        best_iou = avg_iou
-        torch.save(model.state_dict(), f'best_iou_unet_model_{timestamp}.pth')
-        print("Saved best_IoU_unet_model")
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, drop_last=False)
 
-    if epoch+1 == num_epochs:
-        torch.save(model.state_dict(), f'least_unet_model_{timestamp}.pth')
-        print("Saved least_unet_model.pth")
+    # --- Model Initialization ---
+    model = UNet(in_channels=1, out_channels=2).to(DEVICE)
+    
+    # 默认使用 Kaiming 初始化
+    model.apply(kaiming_init_weights)
+
+    # --- Resume Logic (新增逻辑) ---
+    if RESUME:
+        if os.path.isfile(RESUME_CHECKPOINT_PATH):
+            print(f"Loading checkpoint from: {RESUME_CHECKPOINT_PATH}")
+            try:
+                model.load_state_dict(torch.load(RESUME_CHECKPOINT_PATH, map_location=DEVICE, weights_only=True))
+            except TypeError:
+                model.load_state_dict(torch.load(RESUME_CHECKPOINT_PATH, map_location=DEVICE))
+            print("Checkpoint loaded successfully.")
+        else:
+            print(f"Warning: Checkpoint file not found at {RESUME_CHECKPOINT_PATH}. Training from scratch.")
+
+    # --- Optimizer & Criterion ---
+    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-5)
+    criterion = combo_loss_for_micro
+
+    best_iou = 0.0
+
+    # --- Training Loop ---
+    for epoch in range(NUM_EPOCHS):
+        # Train
+        train_loss = train(train_loader, model, optimizer, criterion, epoch)
+        
+        # Validate
+        val_loss, val_iou = validate(test_loader, model, criterion)
+
+        # Print metrics
+        print(f"Epoch [{epoch + 1}] | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val IoU: {val_iou:.4f}")
+
+        # Log Data
+        log_data = {
+            'Epoch': epoch + 1,
+            'Train_Loss': train_loss,
+            'Val_Loss': val_loss,
+            'Val_IoU': val_iou
+        }
+        save_loss_data(pd.DataFrame([log_data]),log_csv_path)
+        
+        # Save Best Model
+        if val_iou > best_iou:
+            best_iou = val_iou
+            torch.save(model.state_dict(), f'best_iou_{NAME.lower()}_model.pth')
+            print(f"Saved best model with IoU: {best_iou:.4f}")
+
+    # Save Last Model
+    torch.save(model.state_dict(), f'last_{NAME.lower()}_model.pth')
+    print("Saved last model.")
+
+if __name__ == "__main__":
+    main()
