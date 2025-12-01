@@ -4,9 +4,9 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import os
-import pandas as pd 
+import pandas as pd
 from datetime import datetime
-import argparse 
+import argparse
 
 # Models & Utils
 from models.unet import UNet
@@ -20,24 +20,25 @@ from utils.plt import save_loss_data
 # Mean Teacher dependencies
 from mean_teacher import ramps, losses
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="U-Net Training Script (Standard or Mean Teacher)")
-    
+
     # Basic Config
     parser.add_argument("--name", type=str, default="U-Net", help="Experiment name")
     parser.add_argument("--device", type=str, default=None, help="Device (cuda, mps, cpu)")
-    
+
     # Paths
     parser.add_argument("--train-img", type=str, default="data/tif/train/image/", help="Path to training images")
     parser.add_argument("--train-lbl", type=str, default="data/tif/train/label", help="Path to training labels")
     parser.add_argument("--test-img", type=str, default="data/tif/test/image/", help="Path to test images")
     parser.add_argument("--test-lbl", type=str, default="data/tif/test/label", help="Path to test labels")
-    
+
     # Hyperparameters
     parser.add_argument("--epochs", type=int, default=20, help="Total epochs")
     parser.add_argument("--batch-size", type=int, default=4, help="Batch size")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
-    
+
     # Resume
     parser.add_argument("--resume", action="store_true", help="Resume from checkpoint")
     parser.add_argument("--resume-path", type=str, default="last_u-net_model.pth", help="Checkpoint path")
@@ -52,6 +53,8 @@ def parse_args():
     return parser.parse_args()
 
 # Mean Teacher Helper Functions
+
+
 def update_ema_variables(model, ema_model, alpha, global_step):
     # Use the true average until the exponential average is more correct
     alpha = min(1 - 1 / (global_step + 1), alpha)
@@ -59,17 +62,20 @@ def update_ema_variables(model, ema_model, alpha, global_step):
         ema_param.data.mul_(alpha).add_(1 - alpha, param.data)
 
 # Mean Teacher Helper Functions
+
+
 def get_current_consistency_weight(epoch, weight, rampup):
     # Consistency ramp-up from https://arxiv.org/abs/1610.02242
     return weight * ramps.sigmoid_rampup(epoch, rampup)
+
 
 def train_standard(loader, model, optimizer, criterion, epoch, device, num_epochs):
     """Standard Supervised Training"""
     model.train()
     total_loss = 0.0
-    
+
     loop = tqdm(loader, desc=f"Epoch {epoch+1}/{num_epochs} [Std]")
-    
+
     for images, masks in loop:
         images = images.to(device)
         masks = masks.to(device).long()
@@ -84,7 +90,8 @@ def train_standard(loader, model, optimizer, criterion, epoch, device, num_epoch
         total_loss += loss.item()
         loop.set_postfix(loss=loss.item())
 
-    return total_loss / len(loader), 0.0, 0.0 # Return 0 for consistency/class parts
+    return total_loss / len(loader), 0.0, 0.0  # Return 0 for consistency/class parts
+
 
 def train_mean_teacher(loader, model, ema_model, optimizer, criterion, epoch, device, num_epochs, args, global_step):
     """Mean Teacher Training"""
@@ -96,15 +103,15 @@ def train_mean_teacher(loader, model, ema_model, optimizer, criterion, epoch, de
     total_cons_loss = 0.0
 
     consistency_weight = get_current_consistency_weight(epoch, args.consistency, args.consistency_rampup)
-    
+
     loop = tqdm(loader, desc=f"Epoch {epoch+1}/{num_epochs} [MT]")
-    
+
     for images, masks in loop:
         images = images.to(device)
         masks = masks.to(device).long()
 
         model_input, ema_input = images, images
-        
+
         # Noise Injection
         if args.noise:
             noise_shape = images.shape
@@ -121,7 +128,7 @@ def train_mean_teacher(loader, model, ema_model, optimizer, criterion, epoch, de
         # Losses
         class_loss = criterion(model_output, masks)
         consistency_loss = losses.softmax_mse_loss(model_output, ema_model_output)
-        
+
         loss = class_loss + consistency_weight * consistency_loss
 
         # Optimization
@@ -137,7 +144,7 @@ def train_mean_teacher(loader, model, ema_model, optimizer, criterion, epoch, de
         total_loss += loss.item()
         total_class_loss += class_loss.item()
         total_cons_loss += consistency_loss.item()
-        
+
         loop.set_postfix(
             loss=loss.item(),
             cls=class_loss.item(),
@@ -148,14 +155,15 @@ def train_mean_teacher(loader, model, ema_model, optimizer, criterion, epoch, de
     avg_total = total_loss / len(loader)
     avg_class = total_class_loss / len(loader)
     avg_cons = total_cons_loss / len(loader)
-    
+
     return avg_total, avg_class, avg_cons, global_step
+
 
 def validate(loader, model, criterion, device):
     model.eval()
     val_loss = 0.0
     iou = 0.0
-    
+
     with torch.no_grad():
         for images, masks in loader:
             images = images.to(device)
@@ -173,15 +181,18 @@ def validate(loader, model, criterion, device):
     avg_iou = iou / len(loader)
     return avg_loss, avg_iou
 
+
 def main():
     args = parse_args()
-    
+
     if args.device:
         device = args.device
     else:
         device = "cpu"
-        if torch.cuda.is_available(): device = "cuda"
-        elif torch.backends.mps.is_available(): device = "mps"
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
+            device = "mps"
     print(f"Using device: {device}")
 
     # Logging Setup
@@ -213,18 +224,18 @@ def main():
         ema_model = UNet(in_channels=1, out_channels=2).to(device)
         ema_model.load_state_dict(model.state_dict())
         for param in ema_model.parameters():
-            param.detach_() # Teacher does not update via backprop
+            param.detach_()  # Teacher does not update via backprop
     else:
         print("--- Standard Training Mode ---")
 
-    # Resume Logic 
+    # Resume Logic
     if args.resume and os.path.isfile(args.resume_path):
         print(f"Loading checkpoint from: {args.resume_path}")
         try:
             checkpoint = torch.load(args.resume_path, map_location=device)
             model.load_state_dict(checkpoint)
             if args.mean_teacher and ema_model:
-                # If resuming MT, ideally we load EMA state. 
+                # If resuming MT, ideally we load EMA state.
                 # If not available, re-cloning model state is a fallback.
                 print("Warning: Re-initializing EMA model from loaded Student model.")
                 ema_model.load_state_dict(model.state_dict())
@@ -233,12 +244,12 @@ def main():
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-5)
     criterion = combo_loss_for_micro
-    
+
     best_iou = 0.0
-    global_step = 0 # For MT rampup
+    global_step = 0  # For MT rampup
 
     for epoch in range(args.epochs):
-        
+
         # --- TRAIN ---
         if args.mean_teacher:
             train_loss, class_loss, cons_loss, global_step = train_mean_teacher(
@@ -256,9 +267,10 @@ def main():
 
         # Console Output
         if args.mean_teacher:
-             print(f"Epoch [{epoch+1}] | Train: {train_loss:.4f} (Cls:{class_loss:.3f} Cons:{cons_loss:.3f}) | Val IoU: {val_iou:.4f}")
+            print(
+                f"Epoch [{epoch+1}] | Train: {train_loss:.4f} (Cls:{class_loss:.3f} Cons:{cons_loss:.3f}) | Val IoU: {val_iou:.4f}")
         else:
-             print(f"Epoch [{epoch+1}] | Train: {train_loss:.4f} | Val IoU: {val_iou:.4f}")
+            print(f"Epoch [{epoch+1}] | Train: {train_loss:.4f} | Val IoU: {val_iou:.4f}")
 
         # Logging
         log_data = {
@@ -270,14 +282,14 @@ def main():
             'Val_IoU': val_iou,
             'Mode': 'MeanTeacher' if args.mean_teacher else 'Standard'
         }
-        
-        save_loss_data(pd.DataFrame([log_data]),log_csv_path)
+
+        save_loss_data(pd.DataFrame([log_data]), log_csv_path)
 
         # Save Best Model
         if val_iou > best_iou:
             best_iou = val_iou
             prefix = "MT_Teacher" if args.mean_teacher else "Standard"
-            save_name = f'best_iou_{prefix}_{args.name}.pth'
+            save_name = f'best_iou_{prefix}_{args.name}_{timestamp}.pth'
             torch.save(eval_model.state_dict(), save_name)
             print(f"Saved best model: {save_name}")
 
@@ -286,8 +298,9 @@ def main():
     torch.save(model.state_dict(), last_name)
     if args.mean_teacher:
         torch.save(ema_model.state_dict(), f'last_{args.name}_ema_model.pth')
-    
+
     print("Training Finished.")
+
 
 if __name__ == "__main__":
     main()
