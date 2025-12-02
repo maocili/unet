@@ -100,10 +100,11 @@ class SobelFilter(v2.Transform):
 
 
 class MicroTransformers:
-    def __init__(self, geo_augment=True):
+    def __init__(self, geo_augment=True, denoise=True):
         self.to_img = v2.ToImage()
         self.to_mask = ToMasks()
         self.geo_augment = geo_augment
+        self.denoise = denoise
 
         self.geom_aug_func = v2.Compose([
             v2.RandomHorizontalFlip(p=0.5),
@@ -116,6 +117,9 @@ class MicroTransformers:
             v2.ToDtype(torch.float32, scale=True),  # Scale [0,1]
             Clahe(clip_limit=40.0, grid_size=(8, 8)),
             v2.Normalize(mean=[0.15], std=[0.35]),
+        ])
+
+        self.denoise_func = v2.Compose([
             SobelFilter(),
         ])
 
@@ -139,6 +143,8 @@ class MicroTransformers:
             if self.geo_augment:
                 img = self.geom_aug_func(img)
             img = self.pixel_aug_func(img)
+            if self.denoise:
+                img = self.denoise_func(img)
             return img
 
         label = self.to_mask(label)
