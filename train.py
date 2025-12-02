@@ -34,6 +34,9 @@ def parse_args():
     parser.add_argument("--test-img", type=str, default="data/tif/test/image/", help="Path to test images")
     parser.add_argument("--test-lbl", type=str, default="data/tif/test/label", help="Path to test labels")
 
+    # Data Augmentation
+    parser.add_argument("--disable-denoise", action="store_true", help="Disable data preprocess to denoise")
+
     # Hyperparameters
     parser.add_argument("--epochs", type=int, default=20, help="Total epochs")
     parser.add_argument("--batch-size", type=int, default=4, help="Batch size")
@@ -60,8 +63,6 @@ def update_ema_variables(model, ema_model, alpha, global_step):
     alpha = min(1 - 1 / (global_step + 1), alpha)
     for ema_param, param in zip(ema_model.parameters(), model.parameters()):
         ema_param.data.mul_(alpha).add_(1 - alpha, param.data)
-
-# Mean Teacher Helper Functions
 
 
 def get_current_consistency_weight(epoch, weight, rampup):
@@ -200,9 +201,10 @@ def main():
     log_csv_path = f'training_{args.name}_log_{timestamp}.csv'
     print(f"Log file: {log_csv_path}")
 
+    denoise = (args.disable_denoise == False)
     train_dataset = TiffDataset(
         args.train_img, args.train_lbl,
-        transforms=MicroTransformers(geo_augment=True)
+        transforms=MicroTransformers(geo_augment=True, denoise=denoise)
     )
     test_dataset = TiffDataset(
         args.test_img, args.test_lbl,
