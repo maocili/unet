@@ -30,10 +30,9 @@ print("Using device:", device)
 # Load Data
 png_dataset = TiffDataset('data/png/test/image', 'data/png/test/label', transforms=MicroTransformers(geo_augment=False))
 tif_dataset = TiffDataset('data/tif/test/image', 'data/tif/test/label', transforms=MicroTransformers(geo_augment=False))
-dataset = png_dataset
+mix_dataset = TiffDataset('data/mix/train/image', 'data/mix/train/label', transforms=MicroTransformers(geo_augment=False))
+dataset = mix_dataset
 indices = len(dataset)
-
-print(f"Test set size: {len(dataset)}")
 
 
 BATCH_SIZE = 2

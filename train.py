@@ -29,10 +29,10 @@ def parse_args():
     parser.add_argument("--device", type=str, default=None, help="Device (cuda, mps, cpu)")
 
     # Paths
-    parser.add_argument("--train-img", type=str, default="data/png/train/image/", help="Path to training images")
-    parser.add_argument("--train-lbl", type=str, default="data/png/train/label", help="Path to training labels")
-    parser.add_argument("--test-img", type=str, default="data/png/test/image/", help="Path to test images")
-    parser.add_argument("--test-lbl", type=str, default="data/png/test/label", help="Path to test labels")
+    parser.add_argument("--train-img", type=str, default="data/mix/train/image/", help="Path to training images")
+    parser.add_argument("--train-lbl", type=str, default="data/mix/train/label", help="Path to training labels")
+    parser.add_argument("--test-img", type=str, default="data/mix/test/image/", help="Path to test images")
+    parser.add_argument("--test-lbl", type=str, default="data/mix/test/label", help="Path to test labels")
 
     # Data Augmentation
     parser.add_argument("--disable-denoise", action="store_true", help="Disable data preprocess to denoise")
@@ -103,13 +103,23 @@ def train_mean_teacher(loader, model, ema_model, optimizer, criterion, epoch, de
     total_class_loss = 0.0
     total_cons_loss = 0.0
 
+    enable_unlabeled = epoch >= args.consistency_rampup
+
     consistency_weight = get_current_consistency_weight(epoch, args.consistency, args.consistency_rampup)
+
 
     loop = tqdm(loader, desc=f"Epoch {epoch+1}/{num_epochs} [MT]")
 
     for images, masks in loop:
         images = images.to(device)
         masks = masks.to(device).long()
+
+        is_unlabeled = torch.max(masks) == torch.min(masks)
+        print(is_unlabeled)
+
+        # Skip unlabel data before rampup
+        if not enable_unlabeled and is_unlabeled:
+            continue
 
         model_input, ema_input = images, images
 
@@ -127,9 +137,11 @@ def train_mean_teacher(loader, model, ema_model, optimizer, criterion, epoch, de
             ema_model_output = ema_model(ema_input)
 
         # Losses
-        class_loss = criterion(model_output, masks)
+        class_loss = 0.0
+        if not is_unlabeled:
+            class_loss = criterion(model_output, masks)
         consistency_loss = losses.softmax_mse_loss(model_output, ema_model_output)
-
+       
         loss = class_loss + consistency_weight * consistency_loss
 
         # Optimization

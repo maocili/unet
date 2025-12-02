@@ -77,6 +77,9 @@ class TiffDataset(Dataset):
         return image.astype(np.uint8)
 
     def __getitem__(self, idx):
+        if idx >= len(self.file_pairs):
+            raise IndexError
+
         if self.image_only:
             return self._get_single_items(idx)
         return self._get_pair_items(idx)
@@ -93,7 +96,7 @@ class TiffDataset(Dataset):
             image = self.img_transforms(image)
         return (image)
 
-    def _get_pair_items(self, idx):
+    def _get_pair_items(self, idx): 
         image_path, label_path = self.file_pairs[idx]
         image = iio.imread(image_path)  # (H, W)
         label = iio.imread(label_path)  # (H, W)
