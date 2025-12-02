@@ -130,6 +130,8 @@ class MicroTransformers:
         if self.geo_augment:
             img, label = self.geom_aug_func(img, label)
         img = self.pixel_aug_func(img)
+        if self.denoise:
+            img = self.denoise_func(img)
 
         return img, label
 
