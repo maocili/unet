@@ -103,8 +103,6 @@ def train_mean_teacher(loader, model, ema_model, optimizer, criterion, epoch, de
     total_class_loss = 0.0
     total_cons_loss = 0.0
 
-    enable_unlabeled = epoch >= args.consistency_rampup
-
     consistency_weight = get_current_consistency_weight(epoch, args.consistency, args.consistency_rampup)
 
 
@@ -113,13 +111,6 @@ def train_mean_teacher(loader, model, ema_model, optimizer, criterion, epoch, de
     for images, masks in loop:
         images = images.to(device)
         masks = masks.to(device).long()
-
-        is_unlabeled = torch.max(masks) == torch.min(masks)
-        print(is_unlabeled)
-
-        # Skip unlabel data before rampup
-        if not enable_unlabeled and is_unlabeled:
-            continue
 
         model_input, ema_input = images, images
 
@@ -137,9 +128,7 @@ def train_mean_teacher(loader, model, ema_model, optimizer, criterion, epoch, de
             ema_model_output = ema_model(ema_input)
 
         # Losses
-        class_loss = 0.0
-        if not is_unlabeled:
-            class_loss = criterion(model_output, masks)
+        class_loss = criterion(model_output, masks)
         consistency_loss = losses.softmax_mse_loss(model_output, ema_model_output)
        
         loss = class_loss + consistency_weight * consistency_loss
