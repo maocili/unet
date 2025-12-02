@@ -27,7 +27,7 @@ print("Using device:", DEVICE)
 
 
 def main():
-    dataset = TiffDataset(single_dir=True, image_path="datasets/10min_HT/",
+    dataset = TiffDataset(image_only=True, image_path="datasets/10min_HT/",
                           masks_path="", transforms=MicroTransformers(geo_augment=False))
 
     batch_size = 1

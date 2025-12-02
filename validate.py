@@ -42,7 +42,7 @@ loader = DataLoader(dataset, batch_size=BATCH_SIZE,
 
 
 # Test
-MODEL_PATH = "mt_1.pth"
+MODEL_PATH = "best_iou_Standard_km_pxiel_20251202_014629.pth"
 model = UNet(in_channels=1, out_channels=2).to(device)
 total_params = sum(p.numel() for p in model.parameters())
 print(f"Total Parameters:", {total_params})

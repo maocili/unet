@@ -29,10 +29,10 @@ def parse_args():
     parser.add_argument("--device", type=str, default=None, help="Device (cuda, mps, cpu)")
 
     # Paths
-    parser.add_argument("--train-img", type=str, default="data/tif/train/image/", help="Path to training images")
-    parser.add_argument("--train-lbl", type=str, default="data/tif/train/label", help="Path to training labels")
-    parser.add_argument("--test-img", type=str, default="data/tif/test/image/", help="Path to test images")
-    parser.add_argument("--test-lbl", type=str, default="data/tif/test/label", help="Path to test labels")
+    parser.add_argument("--train-img", type=str, default="data/png/train/image/", help="Path to training images")
+    parser.add_argument("--train-lbl", type=str, default="data/png/train/label", help="Path to training labels")
+    parser.add_argument("--test-img", type=str, default="data/png/test/image/", help="Path to test images")
+    parser.add_argument("--test-lbl", type=str, default="data/png/test/label", help="Path to test labels")
 
     # Data Augmentation
     parser.add_argument("--disable-denoise", action="store_true", help="Disable data preprocess to denoise")
