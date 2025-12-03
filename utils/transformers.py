@@ -106,6 +106,10 @@ class MicroTransformers:
         self.geo_augment = geo_augment
         self.denoise = denoise
 
+        self.common_func = v2.Compose([
+            v2.Resize((512, 512))
+        ])
+
         self.geom_aug_func = v2.Compose([
             v2.RandomHorizontalFlip(p=0.5),
             v2.RandomVerticalFlip(p=0.5),
@@ -127,6 +131,7 @@ class MicroTransformers:
         img = self.to_img(img)
         label = self.to_mask(label)
 
+        img,label = self.common_func(img,label)
         if self.geo_augment:
             img, label = self.geom_aug_func(img, label)
         img = self.pixel_aug_func(img)
@@ -141,7 +146,8 @@ class MicroTransformers:
 
         if img is not None:
             img = self.to_img(img)
-
+            
+            img = self.common_func(img)
             if self.geo_augment:
                 img = self.geom_aug_func(img)
             img = self.pixel_aug_func(img)

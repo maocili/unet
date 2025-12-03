@@ -10,13 +10,13 @@ from torchvision.transforms import v2
 
 
 class TiffDataset(Dataset):
-    def __init__(self, image_path: str, masks_path: str, img_transforms=None, label_transforms=None, transforms=None, single_dir=False):
+    def __init__(self, image_path: str, masks_path: str, img_transforms=None, label_transforms=None, transforms=None, image_only=False):
         super().__init__()
 
         self.file_supports = ("tif", "tiff", "png")
         self.image_path_dir = image_path
         self.mask_path_dir = masks_path
-        self.single_dir = single_dir  # True, read image path only
+        self.image_only = image_only  # True, read image path only
 
         self.img_transforms = img_transforms
         self.label_transforms = label_transforms
@@ -50,7 +50,7 @@ class TiffDataset(Dataset):
             if idx is not None:
                 pairs_map[idx] = os.path.join(self.image_path_dir, f)
 
-        if not self.single_dir:
+        if not self.image_only:
             try:
                 mlist = os.listdir(self.mask_path_dir)
             except FileNotFoundError:
@@ -77,7 +77,10 @@ class TiffDataset(Dataset):
         return image.astype(np.uint8)
 
     def __getitem__(self, idx):
-        if self.single_dir:
+        if idx >= len(self.file_pairs):
+            raise IndexError
+
+        if self.image_only:
             return self._get_single_items(idx)
         return self._get_pair_items(idx)
 
@@ -93,7 +96,7 @@ class TiffDataset(Dataset):
             image = self.img_transforms(image)
         return (image)
 
-    def _get_pair_items(self, idx):
+    def _get_pair_items(self, idx): 
         image_path, label_path = self.file_pairs[idx]
         image = iio.imread(image_path)  # (H, W)
         label = iio.imread(label_path)  # (H, W)

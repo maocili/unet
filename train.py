@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader,ConcatDataset
 from tqdm import tqdm
 import os
 import pandas as pd
@@ -19,6 +19,7 @@ from utils.plt import save_loss_data
 
 # Mean Teacher dependencies
 from mean_teacher import ramps, losses
+from mean_teacher import data  as mt_data
 
 
 def parse_args():
@@ -29,11 +30,16 @@ def parse_args():
     parser.add_argument("--device", type=str, default=None, help="Device (cuda, mps, cpu)")
 
     # Paths
-    parser.add_argument("--train-img", type=str, default="data/tif/train/image/", help="Path to training images")
-    parser.add_argument("--train-lbl", type=str, default="data/tif/train/label", help="Path to training labels")
-    parser.add_argument("--test-img", type=str, default="data/tif/test/image/", help="Path to test images")
-    parser.add_argument("--test-lbl", type=str, default="data/tif/test/label", help="Path to test labels")
+    parser.add_argument("--train-img", type=str, default="data/png/train/image/", help="Path to training images")
+    parser.add_argument("--train-lbl", type=str, default="data/png/train/label", help="Path to training labels")
+    parser.add_argument("--test-img", type=str, default="data/png/test/image/", help="Path to test images")
+    parser.add_argument("--test-lbl", type=str, default="data/png/test/label", help="Path to test labels")
 
+    parser.add_argument("--unlabeled-img", type=str, default="data/unlabeled_processed/image/",
+                        help="Path to unlabeled images")
+    parser.add_argument("--unlabeled-lbl", type=str, default="data/unlabeled_processed/label/",
+                        help="Path to unlabeled masks (black)")
+    parser.add_argument("--labeled-batch-size", type=int, default=2, help="Number of labeled examples per batch")
     # Data Augmentation
     parser.add_argument("--disable-denoise", action="store_true", help="Disable data preprocess to denoise")
 
@@ -103,6 +109,8 @@ def train_mean_teacher(loader, model, ema_model, optimizer, criterion, epoch, de
     total_class_loss = 0.0
     total_cons_loss = 0.0
 
+    n_labeled = args.labeled_batch_size
+
     consistency_weight = get_current_consistency_weight(epoch, args.consistency, args.consistency_rampup)
 
     loop = tqdm(loader, desc=f"Epoch {epoch+1}/{num_epochs} [MT]")
@@ -110,6 +118,10 @@ def train_mean_teacher(loader, model, ema_model, optimizer, criterion, epoch, de
     for images, masks in loop:
         images = images.to(device)
         masks = masks.to(device).long()
+
+        images_labeled = images[:n_labeled]
+        masks_labeled = masks[:n_labeled]
+        images_unlabeled = images[n_labeled:]
 
         model_input, ema_input = images, images
 
@@ -127,7 +139,8 @@ def train_mean_teacher(loader, model, ema_model, optimizer, criterion, epoch, de
             ema_model_output = ema_model(ema_input)
 
         # Losses
-        class_loss = criterion(model_output, masks)
+        model_output_labeled = model_output[:n_labeled]
+        class_loss = criterion(model_output_labeled, masks_labeled)
         consistency_loss = losses.softmax_mse_loss(model_output, ema_model_output)
 
         loss = class_loss + consistency_weight * consistency_loss
@@ -211,10 +224,28 @@ def main():
         transforms=MicroTransformers(geo_augment=False)
     )
 
-    print(f"Train size: {len(train_dataset)} | Test size: {len(test_dataset)}")
+    unlabeled_dataset = TiffDataset(
+        args.unlabeled_img, args.unlabeled_lbl,
+        transforms=MicroTransformers(geo_augment=True, denoise=(not args.disable_denoise))
+    )
+
+    print(f"Train size: {len(train_dataset)} | Test size: {len(test_dataset)} | Unlabeled Size= {len(unlabeled_dataset)}")
+
+    labeled_idxs = list(range(len(train_dataset)))
+    unlabeled_idxs = list(range(len(train_dataset), len(train_dataset) + len(unlabeled_dataset)))
+    combined_dataset = ConcatDataset([train_dataset, unlabeled_dataset])
+
+    batch_sampler = mt_data.TwoStreamBatchSampler(
+        primary_indices=labeled_idxs,
+        secondary_indices=unlabeled_idxs,
+        batch_size=args.batch_size,
+        secondary_batch_size=args.batch_size - args.labeled_batch_size
+    )
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, drop_last=False)
+
+    combined_loader = DataLoader(combined_dataset, batch_sampler=batch_sampler,pin_memory=True)
 
     # Model Setup
     model = UNet(in_channels=1, out_channels=2).to(device)
@@ -255,7 +286,7 @@ def main():
         # --- TRAIN ---
         if args.mean_teacher:
             train_loss, class_loss, cons_loss, global_step = train_mean_teacher(
-                train_loader, model, ema_model, optimizer, criterion, epoch, device, args.epochs, args, global_step
+                combined_loader, model, ema_model, optimizer, criterion, epoch, device, args.epochs, args, global_step
             )
         else:
             train_loss, class_loss, cons_loss = train_standard(
